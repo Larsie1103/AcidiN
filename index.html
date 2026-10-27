@@ -7,6 +7,37 @@
     <title>AcidiN</title>
 
     <style>
+        /* De achtergrond overlay */
+        .modal {
+        display: none; /* Standaard verborgen */
+        position: fixed;
+        z-index: 1;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.4);
+        }
+
+        /* Het venster zelf */
+        .modal-content {
+        background-color: #0a0c10;
+        margin: 15% auto;
+        padding: 20px;
+        border: 1px solid #888;
+        width: 80%;
+        max-width: 400px;
+        }
+
+        /* Sluit-knop (X) */
+        .close {
+        color: #aaa;
+        float: right;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+        }
+
         html, body {
             width: 100%;
             height: 100%;
@@ -188,6 +219,10 @@
             text-transform: capitalize;
         }
 
+        a {
+        color: rgb(224, 223, 223);
+        }
+
         .task-side {
             flex: 1;
             padding: 40px 36px;
@@ -319,6 +354,30 @@
                         font-size:18px;
                         cursor:pointer;
                     ">✕</button>
+
+                    <button style="
+                        background:transparent;
+                        border:1px solid #444;
+                        color:#aaa;
+                        width:72px;
+                        height:36px;
+                        border-radius:8px;
+                        font-size:16px;
+                        cursor:pointer;
+                        " id="openBtn">credits</button>
+                    
+                    <div id="myModal" class="modal">
+                    <div class="modal-content">
+                        <span class="close">&times;</span>
+                        <h1>credits:</h1>
+                        <p>
+                            <a href="https://poly.pizza/m/cms3_9IcYbB">Skateboard</a> by <a href="https://poly.pizza/u/Poly%20by%20Google">Poly by Google</a> [<a href="https://creativecommons.org/licenses/by/3.0/">CC-BY</a>] via Poly Pizza.<br><br>
+
+                            <a href="https://poly.pizza/m/Tyau1aS2r0">Star</a> by Quaternius.<br>
+                            A LOT of credits to <a href="kenney.nl">Kenney</a>
+                        </p>
+                    </div>
+                    </div>
                 </div>
                 <div class="sub">Wheels: <span id="wheelsCount">0</span> · T of ✕ = sluiten</div>
                 <div class="section-title">MISSIES</div>

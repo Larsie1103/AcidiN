@@ -277,14 +277,14 @@ function updateTaskUI() {
     if (shopList) {
         const prices = {
             white: 0,
-            peach: 12,
-            blue: 15,
-            light_blue: 15,
-            light_green: 15,
-            orange: 18,
-            pink: 18,
-            purple: 20,
-            yellow: 20
+            peach: 29,
+            blue: 20,
+            light_blue: 20,
+            light_green: 20,
+            orange: 25,
+            pink: 25,
+            purple: 35,
+            yellow: 35
         };
         shopList.innerHTML = AVAILABLE_WHEELS.map(name => {
             const owned = ownedWheels.includes(name);
@@ -344,7 +344,16 @@ const RUSH_TIME = 180;
 let collectiveObjects = []; // global, wordt gevuld bij map load
 
 function startRush(count) {
-    if (rushActive || collectiveObjects.length === 0) return;
+    console.log("startRush aangeroepen, collectives:", collectiveObjects.length);
+    if (rushActive) {
+        console.log("Rush is al actief");
+        return;
+    }
+    if (collectiveObjects.length === 0) {
+        console.warn("Geen objective_collective meshes gevonden in de map!");
+        alert("Geen sterren gevonden. Zorg dat objecten in de map 'objective_collective' in de naam hebben.");
+        return;
+    }
     const available = [...collectiveObjects];
     // Shuffle
     for (let i = available.length - 1; i > 0; i--) {
@@ -357,7 +366,10 @@ function startRush(count) {
     rushTimeLeft = RUSH_TIME;
     rushActive = true;
 
-    rushObjects.forEach(m => { m.isVisible = true; });
+    rushObjects.forEach(m => { 
+        m.isVisible = true; 
+        console.log("Ster positie:", m.name, m.getAbsolutePosition());
+    });
     updateRushUI();
     console.log("Rush gestart:", rushTarget, "objecten");
 }
@@ -397,11 +409,19 @@ function checkRushPickup(playerPos) {
     for (let i = rushObjects.length - 1; i >= 0; i--) {
         const obj = rushObjects[i];
         if (!obj.isVisible) continue;
-        const dist = BABYLON.Vector3.Distance(playerPos, obj.getAbsolutePosition());
-        if (dist < 2.2) {
+
+        // Gebruik absolute positie (houdt rekening met parent scaling)
+        const objPos = obj.getAbsolutePosition();
+        const dist = BABYLON.Vector3.Distance(playerPos, objPos);
+
+        // Ruime pickup radius (map is geschaald)
+        if (dist < 12) {
+            console.log("Ster opgepakt!", obj.name, "afstand:", dist.toFixed(1));
             obj.isVisible = false;
+            obj.setEnabled(false);
             rushCollected++;
             rushObjects.splice(i, 1);
+            updateRushUI();
             if (rushCollected >= rushTarget) {
                 endRush(true);
             }
@@ -645,6 +665,7 @@ async function createGame() {
                 if (n.includes("objective_collective")) {
                     collectiveObjects.push(mesh);
                     mesh.isVisible = false;
+                    console.log("Collective gevonden:", mesh.name);
                 }
             }
         });
@@ -1250,5 +1271,27 @@ createGame().then((scene) => {
             </div>`;
     }
 });
+
+const modal = document.getElementById("myModal");
+const btn = document.getElementById("openBtn");
+const span = document.getElementsByClassName("close")[0];
+
+// Open de popup bij klikken op de knop
+btn.onclick = function() {
+  modal.style.display = "block";
+}
+
+// Sluit de popup bij klikken op de 'X'
+span.onclick = function() {
+  modal.style.display = "none";
+}
+
+// Sluit de popup als je buiten het venster klikt
+window.onclick = function(event) {
+  if (event.target == modal) {
+    modal.style.display = "none";
+  }
+}
+
 
 window.addEventListener("resize", () => { engine.resize(); });
