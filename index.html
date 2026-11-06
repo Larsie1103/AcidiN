@@ -1,6 +1,6 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="nl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -185,27 +185,12 @@
             border-right: 1px solid rgba(255,255,255,0.06);
             background: radial-gradient(circle at 50% 40%, #1a1f28 0%, #0a0c10 70%);
         }
-        .preview-board {
-            width: 280px;
-            height: 80px;
-            background: linear-gradient(90deg, #c4a484 0%, #e8d5b5 50%, #c4a484 100%);
-            border-radius: 8px;
-            position: relative;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
-            margin-bottom: 30px;
+        #boardPreview {
+            width: min(90%, 640px);
+            height: min(62vh, 520px);
+            min-height: 260px;
+            touch-action: none;
         }
-        .preview-board::before, .preview-board::after {
-            content: "";
-            position: absolute;
-            width: 36px;
-            height: 36px;
-            background: #f5f5f5;
-            border-radius: 50%;
-            top: 22px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-        }
-        .preview-board::before { left: 30px; }
-        .preview-board::after { right: 30px; }
         .preview-label {
             font-size: 13px;
             color: #888;
@@ -228,6 +213,74 @@
             padding: 40px 36px;
             overflow-y: auto;
         }
+        .menu-header, .menu-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .menu-nav {
+            justify-content: flex-start;
+            flex-wrap: wrap;
+            margin: 22px 0 24px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .menu-tab {
+            background: transparent;
+            color: #aaa;
+            border: 0;
+            border-bottom: 2px solid transparent;
+            padding: 10px 12px;
+            font: inherit;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .menu-tab.active {
+            color: #4ade80;
+            border-bottom-color: #4ade80;
+        }
+        .menu-panel { display: none; }
+        .menu-panel.active { display: block; }
+        .settings-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            padding: 18px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .menu-action {
+            background: #4ade80;
+            color: #0a0c10;
+            border: 0;
+            border-radius: 8px;
+            padding: 9px 14px;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .menu-action[aria-pressed="true"] { background: #333; color: #eee; }
+        #creditsModal { z-index: 500; }
+        html[data-theme="light"] #taskMenu {
+            background: rgba(235, 241, 247, 0.97);
+            color: #19212a;
+        }
+        html[data-theme="light"] .task-preview {
+            background: radial-gradient(circle at 50% 40%, #fff 0%, #e5ebf1 75%);
+            border-color: rgba(0,0,0,0.08);
+        }
+        html[data-theme="light"] .menu-nav,
+        html[data-theme="light"] .settings-row,
+        html[data-theme="light"] .task-item,
+        html[data-theme="light"] .shop-item { border-color: rgba(0,0,0,0.1); }
+        html[data-theme="light"] .menu-tab { color: #586574; }
+        html[data-theme="light"] .menu-tab.active { color: #16834a; border-bottom-color: #16834a; }
+        html[data-theme="light"] .section-title,
+        html[data-theme="light"] .task-side .sub,
+        html[data-theme="light"] .preview-label { color: #66717e; }
+        html[data-theme="light"] .buy-btn.owned { color: #16834a; border-color: #16834a; }
+        html[data-theme="light"] #wheelsCount,
+        html[data-theme="light"] .reward { color: #16834a; }
         .task-side h2 {
             margin: 0 0 6px 0;
             font-size: 26px;
@@ -308,6 +361,20 @@
             z-index: 100;
             pointer-events: none;
         }
+        html[data-theme="light"] .panel {
+            background: rgba(247, 250, 253, 0.84);
+            border-color: rgba(0,0,0,0.1);
+            color: #19212a;
+        }
+        html[data-theme="light"] #dailyProgress,
+        html[data-theme="light"] #wheelHint,
+        html[data-theme="light"] #controlsHint { color: #526170; }
+        @media (max-width: 760px) {
+            .task-layout { flex-direction: column; }
+            .task-preview { flex: 0 0 35%; border-right: 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
+            #boardPreview { height: 28vh; min-height: 150px; }
+            .task-side { padding: 20px; }
+        }
     </style>
 </head>
 <body>
@@ -333,65 +400,102 @@
         <div id="wheelHint">V = wisselen</div>
     </div>
 
-    <!-- Tasks + Shop (full screen) -->
+    <!-- Missies, taken, shop en instellingen -->
     <div id="taskMenu">
         <div class="task-layout">
             <div class="task-preview">
-                <div class="preview-board" id="previewBoard"></div>
+                <canvas id="boardPreview" aria-label="3D preview van je skateboard"></canvas>
                 <div class="preview-label">Huidige setup</div>
                 <div id="previewWheelName">white</div>
             </div>
             <div class="task-side">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h2 style="margin:0;">Taken & Shop</h2>
+                <div class="menu-header">
+                    <h2 style="margin:0;">Skate-menu</h2>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                    <button onclick="showMenuTab('settings')" class="menu-action" aria-label="Instellingen">I · Instellingen</button>
                     <button onclick="toggleTaskMenu()" style="
                         background:transparent;
                         border:1px solid #444;
-                        color:#aaa;
+                        color:inherit;
                         width:36px;
                         height:36px;
                         border-radius:8px;
                         font-size:18px;
                         cursor:pointer;
-                    ">✕</button>
-
+                    " aria-label="Menu sluiten">✕</button>
+                    </div>
+                </div>
+                <div class="sub">Wheels: <span id="wheelsCount">0</span> · T = menu sluiten</div>
+                <nav class="menu-nav" aria-label="Menuonderdelen">
+                    <button class="menu-tab active" data-menu-tab="missions" onclick="showMenuTab('missions')">Missies</button>
+                    <button class="menu-tab" data-menu-tab="tasks" onclick="showMenuTab('tasks')">Taken</button>
+                    <button class="menu-tab" data-menu-tab="shop" onclick="showMenuTab('shop')">Shop</button>
+                    <button class="menu-tab" data-menu-tab="settings" onclick="showMenuTab('settings')">Instellingen</button>
                     <button style="
+                        margin-left:auto;
                         background:transparent;
                         border:1px solid #444;
-                        color:#aaa;
-                        width:72px;
+                        color:inherit;
                         height:36px;
+                        padding:0 12px;
                         border-radius:8px;
-                        font-size:16px;
+                        font-size:14px;
                         cursor:pointer;
-                        " id="openBtn">credits</button>
-                    
-                    <div id="myModal" class="modal">
+                    " id="openBtn">Credits</button>
+                </nav>
+
+                <section class="menu-panel active" data-menu-panel="missions">
+                    <h2>Missies</h2>
+                    <div class="section-title">DAILY MISSIE</div>
+                    <div class="panel" style="position:static; margin-bottom:18px;">
+                        <div class="label" style="color:#4ade80; font-size:11px;">VANDAAG</div>
+                        <div id="dailyMenuLabel">Laden...</div>
+                        <div id="dailyMenuProgress" style="margin-top:8px; color:#888;">0 / 0</div>
+                    </div>
+                    <div class="section-title">RUSH</div>
+                    <div style="margin-bottom: 12px;">
+                        <label style="font-size:13px; color:#aaa;">Aantal sterren: <span id="rushCountLabel">5</span></label>
+                        <input type="range" id="rushSlider" min="3" max="20" value="5" style="width:100%; margin-top:6px;" oninput="document.getElementById('rushCountLabel').textContent=this.value">
+                    </div>
+                    <button id="rushStartBtn" class="buy-btn" onclick="startRushFromUI()" style="width:100%; padding:10px;">Start Rush</button>
+                    <div id="rushStatus" style="margin-top:10px; font-size:14px; color:#888;">Geen actieve rush</div>
+                </section>
+
+                <section class="menu-panel" data-menu-panel="tasks">
+                    <h2>Taken</h2>
+                    <p class="sub">Voltooi tricks en grinds om wheels te verdienen.</p>
+                    <div id="taskList"></div>
+                </section>
+
+                <section class="menu-panel" data-menu-panel="shop">
+                    <h2>Shop</h2>
+                    <p class="sub">Ontgrendel en equip nieuwe wielsets.</p>
+                    <div id="shopList"></div>
+                </section>
+
+                <section class="menu-panel" data-menu-panel="settings">
+                    <h2>Instellingen</h2>
+                    <div class="settings-row">
+                        <div>
+                            <strong>Lichte modus</strong>
+                            <div class="sub" style="margin:6px 0 0;">Verander de belichting en interface.</div>
+                        </div>
+                        <button id="lightModeToggle" class="menu-action" type="button" aria-pressed="false" onclick="toggleLightMode()">Uit</button>
+                    </div>
+                    <p class="sub" style="margin-top:16px;">Sneltoets: I</p>
+                </section>
+
+                <div id="creditsModal" class="modal">
                     <div class="modal-content">
                         <span class="close">&times;</span>
-                        <h1>credits:</h1>
+                        <h1>Credits</h1>
                         <p>
                             <a href="https://poly.pizza/m/cms3_9IcYbB">Skateboard</a> by <a href="https://poly.pizza/u/Poly%20by%20Google">Poly by Google</a> [<a href="https://creativecommons.org/licenses/by/3.0/">CC-BY</a>] via Poly Pizza.<br><br>
-
                             <a href="https://poly.pizza/m/Tyau1aS2r0">Star</a> by Quaternius.<br>
-                            A LOT of credits to <a href="kenney.nl">Kenney</a>
+                            A LOT of credits to <a href="https://kenney.nl">Kenney</a>
                         </p>
                     </div>
-                    </div>
                 </div>
-                <div class="sub">Wheels: <span id="wheelsCount">0</span> · T of ✕ = sluiten</div>
-                <div class="section-title">MISSIES</div>
-                <div style="margin-bottom: 12px;">
-                    <label style="font-size:13px; color:#aaa;">Aantal sterren: <span id="rushCountLabel">5</span></label>
-                    <input type="range" id="rushSlider" min="3" max="20" value="5" style="width:100%; margin-top:6px;" oninput="document.getElementById('rushCountLabel').textContent=this.value">
-                </div>
-                <button id="rushStartBtn" class="buy-btn" onclick="startRushFromUI()" style="width:100%; padding:10px;">Start Rush</button>
-                <div id="rushStatus" style="margin-top:10px; font-size:14px; color:#888;">Geen actieve rush</div>
-
-                <div class="section-title">TAKEN</div>
-                <div id="taskList"></div>
-                <div class="section-title">SHOP</div>
-                <div id="shopList"></div>
             </div>
         </div>
     </div>

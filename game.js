@@ -1,3 +1,4 @@
+
 const canvas = document.getElementById("renderCanvas");
 const engine = new BABYLON.Engine(canvas, true);
 
@@ -21,7 +22,9 @@ const PHYSICS_BOX_DEPTH = 4.5;
 const SHOW_PHYSICS_OUTLINE = false;
 
 let speed = 0; 
-let pushpower = 7;        
+let pushpower = 28; // 4x hoger
+let lastPushTime = 0;
+const PUSH_DELAY = 450; // ms tussen pushes        
 let maxSpeed = 70;        
 let SlowDownPower = 0.05; 
 let turnSpeed = 2;        
@@ -89,8 +92,28 @@ let currentWheel = localStorage.getItem("acidin_wheel") || "white";
 if (!AVAILABLE_WHEELS.includes(currentWheel)) currentWheel = "white";
 let wheelMeshes = [];
 
+let boardAnimGroups = [];
+let idleAnim = null;
+let pushAnim = null;
+let currentBoardAnim = null;
 let boardParts = null;
 let gameScene = null;
+let gameSkyMaterial = null;
+let gameLight = null;
+let previewEngine = null;
+let previewScene = null;
+let previewBoardRoot = null;
+let previewWheelMeshes = [];
+let isLightMode = localStorage.getItem("acidin_light_mode") === "true";
+
+function playBoardAnim(name) {
+    if (!boardAnimGroups.length) return;
+    const anim = boardAnimGroups.find(a => a.name.toLowerCase().includes(name));
+    if (!anim || anim === currentBoardAnim) return;
+    if (currentBoardAnim) currentBoardAnim.stop();
+    anim.start(true); // loop
+    currentBoardAnim = anim;
+}
 
 async function loadWheelSet(name, parentNode, scene) {
     // Verwijder oude wielen
@@ -134,6 +157,9 @@ async function loadWheelSet(name, parentNode, scene) {
         currentWheel = name;
         updateWheelUI();
         updateTaskUI();
+        updateBoardPreviewWheel(name).catch(error => {
+            console.error("Previewwielen konden niet worden geladen:", error);
+        });
     } catch (err) {
         console.warn("Kon wielen niet laden:", name, err);
     }
@@ -277,14 +303,14 @@ function updateTaskUI() {
     if (shopList) {
         const prices = {
             white: 0,
-            peach: 29,
-            blue: 20,
-            light_blue: 20,
-            light_green: 20,
-            orange: 25,
-            pink: 25,
-            purple: 35,
-            yellow: 35
+            peach: 25,
+            blue: 30,
+            light_blue: 30,
+            light_green: 30,
+            orange: 35,
+            pink: 35,
+            purple: 40,
+            yellow: 40
         };
         shopList.innerHTML = AVAILABLE_WHEELS.map(name => {
             const owned = ownedWheels.includes(name);
@@ -299,6 +325,96 @@ function updateTaskUI() {
             </div>`;
         }).join("");
     }
+}
+
+async function updateBoardPreviewWheel(name) {
+    if (!previewScene || !previewBoardRoot) return;
+
+    previewWheelMeshes.forEach(mesh => mesh.dispose());
+    previewWheelMeshes = [];
+
+    const result = await BABYLON.SceneLoader.ImportMeshAsync("", "models/wheels/", name + ".glb", previewScene);
+    const root = result.meshes[0];
+    root.parent = previewBoardRoot;
+    root.position.set(0, 0, 0);
+    root.rotationQuaternion = null;
+    root.rotation.set(0, 0, 0);
+    root.isVisible = false;
+
+    const frontTruck = previewScene.getNodeByName("FrontTruck");
+    const rearTruck = previewScene.getNodeByName("RearTruck");
+    result.meshes.forEach(mesh => {
+        if (mesh === root) return;
+        mesh.isVisible = true;
+        mesh.scaling.set(1, 1, 1);
+
+        const localX = mesh.position.x;
+        const localZ = mesh.position.z;
+        if (localZ >= 0 && frontTruck) {
+            mesh.parent = frontTruck;
+            mesh.position.set(localX, 0, 0);
+        } else if (rearTruck) {
+            mesh.parent = rearTruck;
+            mesh.position.set(localX, 0, 0);
+        } else {
+            mesh.parent = previewBoardRoot;
+        }
+        previewWheelMeshes.push(mesh);
+    });
+}
+
+async function initBoardPreview() {
+    const canvas = document.getElementById("boardPreview");
+    if (!canvas) return;
+
+    previewEngine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true });
+    const scene = new BABYLON.Scene(previewEngine);
+    scene.clearColor = new BABYLON.Color4(0.06, 0.08, 0.11, 1);
+    const camera = new BABYLON.ArcRotateCamera(
+        "boardPreviewCamera",
+        -Math.PI / 2,
+        1.05,
+        6,
+        BABYLON.Vector3.Zero(),
+        scene
+    );
+    camera.lowerRadiusLimit = 3;
+    camera.upperRadiusLimit = 12;
+    camera.wheelPrecision = 50;
+    camera.panningSensibility = 0;
+    camera.attachControl(canvas, true);
+
+    const light = new BABYLON.HemisphericLight("boardPreviewLight", new BABYLON.Vector3(0, 1, 0), scene);
+    light.intensity = 1.1;
+    const fill = new BABYLON.DirectionalLight("boardPreviewFill", new BABYLON.Vector3(0, -1, 1), scene);
+    fill.intensity = 0.65;
+
+    const result = await BABYLON.SceneLoader.ImportMeshAsync("", "models/full_boards/", "skateboard.glb", scene);
+    const root = result.meshes[0];
+    const modelMeshes = result.meshes.filter(mesh => mesh.getTotalVertices && mesh.getTotalVertices() > 0);
+    if (!root || modelMeshes.length === 0) {
+        throw new Error("Het skateboardmodel bevat geen zichtbare meshes.");
+    }
+
+    const bounds = BABYLON.Mesh.MinMax(modelMeshes);
+    const center = bounds.min.add(bounds.max).scale(0.5);
+    const size = bounds.max.subtract(bounds.min);
+    const largestDimension = Math.max(size.x, size.y, size.z);
+    if (!Number.isFinite(largestDimension) || largestDimension <= 0) {
+        throw new Error("De afmetingen van het skateboardmodel zijn ongeldig.");
+    }
+    root.position.subtractInPlace(center);
+    root.scaling.scaleInPlace(3.2 / largestDimension);
+    root.rotation.y = Math.PI * 0.12;
+    camera.radius = Math.max(3, largestDimension * 1.05);
+
+    previewScene = scene;
+    previewBoardRoot = root;
+    await updateBoardPreviewWheel(currentWheel);
+    previewEngine.resize();
+    previewEngine.runRenderLoop(() => scene.render());
+    window.addEventListener("resize", () => previewEngine.resize());
+    applyLightMode();
 }
 
 window.buyWheel = function (name, price) {
@@ -318,10 +434,60 @@ window.equipWheel = function (name) {
 };
 
 let taskMenuOpen = false;
+let activeMenuTab = "missions";
+window.showMenuTab = function (tab) {
+    const validTabs = ["missions", "tasks", "shop", "settings"];
+    if (!validTabs.includes(tab)) return;
+    activeMenuTab = tab;
+    document.querySelectorAll("[data-menu-tab]").forEach(button => {
+        button.classList.toggle("active", button.dataset.menuTab === tab);
+    });
+    document.querySelectorAll("[data-menu-panel]").forEach(panel => {
+        panel.classList.toggle("active", panel.dataset.menuPanel === tab);
+    });
+};
+
+function applyLightMode() {
+    document.documentElement.dataset.theme = isLightMode ? "light" : "dark";
+    const button = document.getElementById("lightModeToggle");
+    if (button) {
+        button.textContent = isLightMode ? "Aan" : "Uit";
+        button.setAttribute("aria-pressed", String(isLightMode));
+    }
+    if (gameScene) {
+        gameScene.clearColor = isLightMode
+            ? new BABYLON.Color4(0.78, 0.88, 0.98, 1)
+            : new BABYLON.Color4(0.53, 0.75, 0.98, 1);
+    }
+    if (gameSkyMaterial) {
+        gameSkyMaterial.diffuseColor = isLightMode
+            ? new BABYLON.Color3(0.68, 0.84, 1)
+            : new BABYLON.Color3(0.45, 0.68, 0.98);
+        gameSkyMaterial.emissiveColor = isLightMode
+            ? new BABYLON.Color3(0.58, 0.77, 1)
+            : new BABYLON.Color3(0.4, 0.62, 0.95);
+    }
+    if (gameLight) gameLight.intensity = isLightMode ? 1.3 : 0.9;
+    if (previewScene) {
+        previewScene.clearColor = isLightMode
+            ? new BABYLON.Color4(0.88, 0.92, 0.96, 1)
+            : new BABYLON.Color4(0.06, 0.08, 0.11, 1);
+    }
+}
+
+window.toggleLightMode = function () {
+    isLightMode = !isLightMode;
+    localStorage.setItem("acidin_light_mode", String(isLightMode));
+    applyLightMode();
+};
+
 function toggleTaskMenu() {
     taskMenuOpen = !taskMenuOpen;
     const el = document.getElementById("taskMenu");
     if (el) el.classList.toggle("open", taskMenuOpen);
+    if (taskMenuOpen && previewEngine) {
+        requestAnimationFrame(() => previewEngine.resize());
+    }
     if (taskMenuOpen && document.pointerLockElement) {
         document.exitPointerLock();
     }
@@ -431,7 +597,17 @@ function checkRushPickup(playerPos) {
 
 // T opent/sluit het menu altijd (ook bij pointer lock)
 document.addEventListener("keydown", (e) => {
-    if (e.key.toLowerCase() === "t") {
+    const key = e.key.toLowerCase();
+    if (key === "i") {
+        e.preventDefault();
+        const settingsWereOpen = taskMenuOpen && activeMenuTab === "settings";
+        if (!taskMenuOpen) toggleTaskMenu();
+        if (settingsWereOpen) {
+            toggleTaskMenu();
+        } else {
+            window.showMenuTab("settings");
+        }
+    } else if (key === "t") {
         e.preventDefault();
         if (document.pointerLockElement) {
             document.exitPointerLock();
@@ -513,12 +689,17 @@ function updateDailyUI() {
     if (!labelEl || !progEl || !dailyChallenge) return;
 
     labelEl.textContent = dailyChallenge.label;
+    const menuLabelEl = document.getElementById('dailyMenuLabel');
+    const menuProgressEl = document.getElementById('dailyMenuProgress');
+    if (menuLabelEl) menuLabelEl.textContent = dailyChallenge.label;
     if (dailyCompleted) {
         progEl.textContent = 'Voltooid';
         progEl.classList.add('done');
+        if (menuProgressEl) menuProgressEl.textContent = 'Voltooid';
     } else {
         progEl.textContent = `${dailyProgress} / ${dailyChallenge.target}`;
         progEl.classList.remove('done');
+        if (menuProgressEl) menuProgressEl.textContent = `${dailyProgress} / ${dailyChallenge.target}`;
     }
 }
 
@@ -578,6 +759,7 @@ window.new_daily = function (forceType) {
 
 async function createGame() {
     const scene = new BABYLON.Scene(engine);
+    scene.animationsEnabled = true;
     
     const havokInstance = await HavokPhysics();
     const havokPlugin = new BABYLON.HavokPlugin(true, havokInstance);
@@ -606,6 +788,7 @@ async function createGame() {
     // Betrouwbare blauwe lucht
     const sky = BABYLON.MeshBuilder.CreateSphere("sky", { diameter: 1500, segments: 32 }, scene);
     const skyMat = new BABYLON.StandardMaterial("skyMat", scene);
+    gameSkyMaterial = skyMat;
     skyMat.backFaceCulling = false;
     skyMat.disableLighting = true;
     skyMat.diffuseColor = new BABYLON.Color3(0.45, 0.68, 0.98);
@@ -635,7 +818,8 @@ async function createGame() {
     }
 
     const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-    light.intensity = 0.9;
+    gameLight = light;
+    applyLightMode();
 
     let grindableLines = [];
 
@@ -796,6 +980,47 @@ async function createGame() {
         const skateboard = result.meshes[0];
         skateboard.parent = physicsMesh;
         boardParts.root = skateboard;
+
+        // Animaties ophalen
+        boardAnimGroups = result.animationGroups || [];
+        console.log("Board animaties gevonden:", boardAnimGroups.map(a => a.name));
+
+        idleAnim = boardAnimGroups.find(a => {
+            const n = a.name.toLowerCase();
+            return n.includes("idle");
+        });
+        pushAnim = boardAnimGroups.find(a => {
+            const n = a.name.toLowerCase();
+            return n.includes("push");
+        });
+
+        // Stop alle animaties eerst
+        boardAnimGroups.forEach(a => a.stop());
+
+        if (idleAnim) {
+            console.log("Idle starten:", idleAnim.name, "| targets:", idleAnim.targetedAnimations.length);
+            // 1. Stop alles
+            boardAnimGroups.forEach(a => a.stop());
+            // 2. Zorg dat targets enabled en visible zijn
+            idleAnim.targetedAnimations.forEach(ta => {
+                if (ta.target) {
+                    ta.target.setEnabled(true);
+                    if (ta.target.isVisible === false) ta.target.isVisible = true;
+                }
+            });
+            // 3. Weight en speed
+            idleAnim.setWeightForAllAnimatables(1);
+            idleAnim.speedRatio = 1;
+            // 4. Play looping
+            idleAnim.play(true);
+            currentBoardAnim = idleAnim;
+            // 5. Nog een keer na parenten
+            setTimeout(() => {
+                if (currentBoardAnim === idleAnim) idleAnim.play(true);
+            }, 200);
+        } else {
+            console.warn("Geen idle animatie gevonden!");
+        }
         function findByName(name) { return scene.getNodeByName(name); }
         boardParts.deck = findByName("Deck") || findByName("Skateboard_1");
         boardParts.frontTruck = findByName("FrontTruck");
@@ -806,9 +1031,11 @@ async function createGame() {
         boardParts.wheels.RR = findByName("WheelRR");
 
         if (boardParts.deck) {
-            boardParts.deck.rotationQuaternion = null; 
-            boardParts.deck.rotation = new BABYLON.Vector3(0, 0, 0);
-            // Zorg dat trucks child zijn van het deck (zodat ollie alles meeneemt)
+            // Niet de rotatie forceren als er animaties zijn
+            if (boardAnimGroups.length === 0) {
+                boardParts.deck.rotationQuaternion = null; 
+                boardParts.deck.rotation = new BABYLON.Vector3(0, 0, 0);
+            }
             if (boardParts.frontTruck && boardParts.frontTruck.parent !== boardParts.deck) {
                 boardParts.frontTruck.parent = boardParts.deck;
             }
@@ -817,18 +1044,14 @@ async function createGame() {
             }
         }
 
+        // Root nooit forceren als er animaties op zitten
+        // (animaties hebben de quaternion nodig)
+
         Object.values(boardParts.wheels).forEach(wheel => {
             if (wheel) {
-                wheel.rotationQuaternion = null;
-                wheel.rotation = new BABYLON.Vector3(0, 0, 0);
-                wheel.isVisible = false; // originele wielen verbergen
+                wheel.isVisible = false;
             }
         });
-
-        if (boardParts.root) {
-            boardParts.root.rotationQuaternion = null;
-            boardParts.root.rotation = new BABYLON.Vector3(0, 0, 0);
-        }
 
         // Laad gekozen wiel-set (vervangt de standaard wielen visueel)
         await loadWheelSet(currentWheel, skateboard, scene);
@@ -847,8 +1070,31 @@ async function createGame() {
         const key = kbInfo.event.key.toLowerCase();
         if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYDOWN) {
             inputMap[key] = true;
+let lastPushAnimTime = 0;
+
             if (key === " " || key === "spacebar") {
+                const now = performance.now();
+                if (now - lastPushTime < PUSH_DELAY) return; // delay
+                lastPushTime = now;
+
+                const oldSpeed = speed;
                 speed = Math.min(speed + pushpower, maxSpeed);
+
+                if (pushAnim && speed > oldSpeed) {
+                    if (currentBoardAnim && currentBoardAnim !== pushAnim) {
+                        currentBoardAnim.stop();
+                    }
+                    pushAnim.stop();
+                    pushAnim.play(false);
+                    currentBoardAnim = pushAnim;
+                    setTimeout(() => {
+                        if (idleAnim && currentBoardAnim === pushAnim) {
+                            pushAnim.stop();
+                            idleAnim.play(true);
+                            currentBoardAnim = idleAnim;
+                        }
+                    }, 650);
+                }
             }
             if (key === "v") {
                 // Wissel wiel-set
@@ -1257,6 +1503,10 @@ createGame().then((scene) => {
     loadTasks();
     updateWheelUI();
     updateTaskUI();
+    initBoardPreview().catch((error) => {
+        console.error("Skateboardpreview kon niet worden geladen:", error);
+    });
+    applyLightMode();
     engine.runRenderLoop(() => { scene.render(); });
 }).catch((error) => {
     console.error("Failed to initialize game:", error);
@@ -1272,26 +1522,19 @@ createGame().then((scene) => {
     }
 });
 
-const modal = document.getElementById("myModal");
-const btn = document.getElementById("openBtn");
-const span = document.getElementsByClassName("close")[0];
-
-// Open de popup bij klikken op de knop
-btn.onclick = function() {
-  modal.style.display = "block";
-}
-
-// Sluit de popup bij klikken op de 'X'
-span.onclick = function() {
-  modal.style.display = "none";
-}
-
-// Sluit de popup als je buiten het venster klikt
-window.onclick = function(event) {
-  if (event.target == modal) {
-    modal.style.display = "none";
-  }
-}
-
-
 window.addEventListener("resize", () => { engine.resize(); });
+
+const creditsModal = document.getElementById("creditsModal");
+const creditsButton = document.getElementById("openBtn");
+const creditsCloseButton = document.querySelector("#creditsModal .close");
+if (creditsButton && creditsModal) {
+    creditsButton.addEventListener("click", () => { creditsModal.style.display = "block"; });
+}
+if (creditsCloseButton && creditsModal) {
+    creditsCloseButton.addEventListener("click", () => { creditsModal.style.display = "none"; });
+}
+if (creditsModal) {
+    creditsModal.addEventListener("click", (event) => {
+        if (event.target === creditsModal) creditsModal.style.display = "none";
+    });
+}
