@@ -27,7 +27,9 @@ Open daarna [http://localhost:8000](http://localhost:8000) in je browser.
 | Shift loslaten | Uncrouchen |
 | Q | Grinden |
 | Scrollwiel | Shuvit |
-| Muisbeweging | Tricks |
+| Twee keer scrollen | Varial shuvit |
+| Grote scrollbeweging | 360 shuvit |
+| Muisbeweging in de lucht | Tricks, waaronder 360 flips, varial flips, hardflips en inward heels |
 | V | Wielset wisselen |
 | T | Missie-, taken- en shopmenu openen/sluiten |
 | I | Instellingen openen/sluiten |
@@ -42,6 +44,7 @@ Klik op de lichte-modusknop in **Instellingen** om tussen lichte en donkere modu
 - **Instellingen:** schakel de lichte modus in of uit.
 - **3D-boardpreview:** bekijk en draai het skateboardmodel met je huidige wielset.
 - **Taal:** kies in Instellingen uit Engels (standaard), Nederlands, Spaans, Duits of Frans. Je keuze wordt lokaal opgeslagen.
+- **Instellingenbestand:** pas besturing, physics, beweging, camera, tricks, Rush, wielprijzen, talen, vertalingen en taken aan in `settings.json`.
 
 Voortgang, vrijgespeelde wielen en de gekozen wielset worden in de browser opgeslagen.
 
@@ -49,11 +52,12 @@ Voortgang, vrijgespeelde wielen en de gekozen wielset worden in de browser opges
 
 - `index.html` — gamepagina en interface.
 - `game.js` — Babylon.js-scene, besturing, missies, taken en shop.
-- `tasks.json` — beschikbare taken.
-- `models/` — skateboard-, wiel- en mapmodellen.
+- `settings.json` — alle game-instellingen, talen, vertalingen en 200 taken.
+- `models/` — skateboard-, wiel- en mapmodellen, inclusief de KF- en HF-trickanimaties.
 
 ## 📢 Updates
 
+- **v0.5:** Alle instellingen, talen en taken samengebracht in `settings.json`; 160 extra taken, KF- en HF-animaties voor kickflips en heelflips, en nieuwe tricks zoals 360 flips, hardflips, inward heels, 360 shuvits en bigspins.
 - **v0.4:**
     - Taalkeuze: Nederlands, English (standaard), Deutsch, Español en Français.
     - Aparte menu's voor missies, taken en de shop.

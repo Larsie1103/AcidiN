@@ -1,0 +1,2037 @@
+{
+  "version": 1,
+  "defaultLanguage": "en",
+  "controls": {
+    "keyBindings": {
+      "push": [
+        " "
+      ],
+      "ollie": [
+        "shift",
+        "w"
+      ],
+      "grind": [
+        "q"
+      ],
+      "switchWheels": [
+        "v"
+      ],
+      "menu": [
+        "t"
+      ],
+      "settings": [
+        "i"
+      ],
+      "crouch": [
+        "shift"
+      ],
+      "forward": [
+        "w",
+        "arrowup"
+      ],
+      "backward": [
+        "s",
+        "arrowdown"
+      ],
+      "left": [
+        "a",
+        "arrowleft"
+      ],
+      "right": [
+        "d",
+        "arrowright"
+      ]
+    },
+    "mouse": {
+      "tricks": {
+        "en": "mouse flick tricks",
+        "nl": "muisbeweging tricks",
+        "es": "ratón trucos",
+        "de": "Maus Tricks",
+        "fr": "souris figures"
+      },
+      "shuvit": {
+        "en": "scroll shuvit",
+        "nl": "scroll shuvit",
+        "es": "rueda shuvit",
+        "de": "Scroll Shuvit",
+        "fr": "molette shuvit"
+      }
+    }
+  },
+  "assets": {
+    "map": "models/maps/map.glb",
+    "board": "models/full_boards/Untitled.glb",
+    "wheelDirectory": "models/wheels/"
+  },
+  "gameplay": {
+    "physics": {
+      "gravityY": -26,
+      "boxWidth": 2.5,
+      "boxHeight": 0.4,
+      "boxDepth": 4.5,
+      "mass": 15,
+      "friction": 0,
+      "restitution": 0.05,
+      "linearDamping": 0.1,
+      "angularDamping": 0.8,
+      "mapFriction": 0.5,
+      "mapRestitution": 0.1,
+      "showOutline": false
+    },
+    "movement": {
+      "pushPower": 28,
+      "pushDelayMs": 450,
+      "maxSpeed": 70,
+      "coastDeceleration": 0.05,
+      "brakeDeceleration": 0.8,
+      "turnSpeed": 2,
+      "jumpImpulse": 300,
+      "ollieDurationSeconds": 0.4
+    },
+    "camera": {
+      "followDistance": 42,
+      "smoothness": 3,
+      "defaultPitch": 0.45,
+      "initialYaw": -1.5707963267948966,
+      "initialPitch": 0.85,
+      "startingRadius": 12,
+      "mouseSensitivity": 0.005,
+      "fov": 0.85,
+      "maxZ": 5000,
+      "minimumBeta": 0.1,
+      "maximumBetaOffset": 0.05
+    },
+    "tricks": {
+      "mousePitchSensitivity": 0.04,
+      "flipMouseThreshold": 38,
+      "flipDurationSeconds": 0.45,
+      "shuvitDurationSeconds": 0.32,
+      "manualDurationSeconds": 0.55,
+      "manualFlickThreshold": 42,
+      "manualPitchSpeed": 3.2,
+      "grindHeightOffset": 0.35,
+      "grindDetectionDiameter": 10.2,
+      "grindDetectionHeight": 2.5,
+      "boardLineLength": 4.2,
+      "boardLineOffsetY": -0.15,
+      "advancedFlipMultiplier": 2.4,
+      "varialFlipMultiplier": 1.5,
+      "doubleShuvitWindowMs": 300,
+      "largeShuvitDelta": 180
+    },
+    "rush": {
+      "durationSeconds": 180,
+      "pickupRadius": 12,
+      "defaultTarget": 5,
+      "minTarget": 3,
+      "maxTarget": 20
+    },
+    "dailyChallenges": {
+      "kickflip": [
+        2,
+        5
+      ],
+      "heelflip": [
+        2,
+        4
+      ],
+      "grind": [
+        3,
+        6
+      ],
+      "shuvit": [
+        3,
+        5
+      ],
+      "tricks": [
+        4,
+        8
+      ]
+    },
+    "tasks": {
+      "activeCount": 4
+    },
+    "board": {
+      "mapScale": 12,
+      "previewScale": 3.2,
+      "previewCameraRadius": 6,
+      "previewMinRadius": 3,
+      "previewMaxRadius": 12,
+      "idleMotionScale": 3,
+      "skyDark": [
+        0.45,
+        0.68,
+        0.98
+      ],
+      "skyLight": [
+        0.68,
+        0.84,
+        1
+      ],
+      "skyEmissiveDark": [
+        0.4,
+        0.62,
+        0.95
+      ],
+      "skyEmissiveLight": [
+        0.58,
+        0.77,
+        1
+      ],
+      "gameClearDark": [
+        0.53,
+        0.75,
+        0.98
+      ],
+      "gameClearLight": [
+        0.78,
+        0.88,
+        0.98
+      ],
+      "previewClearDark": [
+        0.06,
+        0.08,
+        0.11
+      ],
+      "previewClearLight": [
+        0.88,
+        0.92,
+        0.96
+      ],
+      "lightIntensityDark": 0.9,
+      "lightIntensityLight": 1.3,
+      "previewLightIntensity": 1.1,
+      "previewFillIntensity": 0.65
+    },
+    "wheels": [
+      {
+        "id": "white",
+        "price": 0
+      },
+      {
+        "id": "peach",
+        "price": 25
+      },
+      {
+        "id": "blue",
+        "price": 30
+      },
+      {
+        "id": "light_blue",
+        "price": 30
+      },
+      {
+        "id": "light_green",
+        "price": 30
+      },
+      {
+        "id": "orange",
+        "price": 35
+      },
+      {
+        "id": "pink",
+        "price": 35
+      },
+      {
+        "id": "purple",
+        "price": 40
+      },
+      {
+        "id": "yellow",
+        "price": 40
+      }
+    ]
+  },
+  "languages": [
+    {
+      "code": "en",
+      "name": "English"
+    },
+    {
+      "code": "nl",
+      "name": "Nederlands"
+    },
+    {
+      "code": "es",
+      "name": "Español"
+    },
+    {
+      "code": "de",
+      "name": "Deutsch"
+    },
+    {
+      "code": "fr",
+      "name": "Français"
+    }
+  ],
+  "translations": {
+    "en": {
+      "loading": "Loading...",
+      "boardPreview": "3D preview of your skateboard",
+      "loadingError": "Loading error",
+      "daily": "Daily",
+      "wheels": "Wheels",
+      "wheelHint": "V = change",
+      "currentSetup": "Current setup",
+      "skateMenu": "Skate menu",
+      "settings": "Settings",
+      "closeMenu": "Close menu",
+      "menuCloseHint": "{menu} = close menu",
+      "menuSections": "Menu sections",
+      "missions": "Missions",
+      "tasks": "Tasks",
+      "shop": "Shop",
+      "credits": "Credits",
+      "dailyMission": "DAILY MISSION",
+      "today": "TODAY",
+      "rush": "RUSH",
+      "starCount": "Stars to collect",
+      "startRush": "Start Rush",
+      "noActiveRush": "No active rush",
+      "tasksDescription": "Complete tricks and grinds to earn wheels.",
+      "shopDescription": "Unlock and equip new wheel sets.",
+      "lightMode": "Light mode",
+      "lightModeDescription": "Change the lighting and interface theme.",
+      "language": "Language",
+      "keyboardShortcut": "Keyboard shortcut",
+      "on": "On",
+      "off": "Off",
+      "skateboardModel": "Skateboard model",
+      "by": "by",
+      "via": "via",
+      "starAsset": "Star by",
+      "creditsThanks": "Thanks to",
+      "noTasks": "No tasks available.",
+      "equip": "Equip",
+      "equipped": "Equipped",
+      "price": "{amount} wheels",
+      "dailyDone": "Completed",
+      "noStars": "No stars found. Make sure map objects include 'objective_collective' in their name.",
+      "taskDo": "Do {target} {type}",
+      "taskStart": "Start {target} {type}",
+      "taskLand": "Land {target} {type}",
+      "taskAllround": "Do {target} all-around tricks",
+      "taskCombo": "Do {target} grinds and {target} flips",
+      "taskSpeedrun": "Start {target} grinds in a row",
+      "taskAir": "Land {target} aerial tricks",
+      "typeGrind": "grinds",
+      "typeTricks": "tricks",
+      "typeFlips": "flips",
+      "typeShuvit": "shuvits",
+      "typeManual": "manuals",
+      "typeKickflip": "kickflips",
+      "typeHeelflip": "heelflips",
+      "dailyKickflip": "Do {target} kickflips",
+      "dailyHeelflip": "Do {target} heelflips",
+      "dailyGrind": "Start {target} grinds (Q)",
+      "dailyShuvit": "Do {target} shuvits",
+      "dailyTricks": "Land {target} tricks",
+      "controlsHint": "{movement} move | {push} push | {ollie} ollie | {grind} grind | {switchWheels} wheels | {menu} menu | {settings} settings | {shuvitControl} | {trickControl}",
+      "type360flip": "360 flips",
+      "typeVarialflip": "varial flips",
+      "typeHardflip": "hardflips",
+      "typeInwardheel": "inward heels",
+      "type360shuvit": "360 shuvits",
+      "typeBigspin": "bigspins",
+      "typeOllie": "ollies",
+      "typeVarialshuvit": "varial shuvits",
+      "typeLaserflip": "laser flips",
+      "typePressureflip": "pressure flips"
+    },
+    "nl": {
+      "loading": "Laden...",
+      "boardPreview": "3D-preview van je skateboard",
+      "loadingError": "Fout bij laden",
+      "daily": "Dagelijks",
+      "wheels": "Wheels",
+      "wheelHint": "V = wisselen",
+      "currentSetup": "Huidige setup",
+      "skateMenu": "Skatemenu",
+      "settings": "Instellingen",
+      "closeMenu": "Menu sluiten",
+      "menuCloseHint": "{menu} = menu sluiten",
+      "menuSections": "Menuonderdelen",
+      "missions": "Missies",
+      "tasks": "Taken",
+      "shop": "Shop",
+      "credits": "Credits",
+      "dailyMission": "DAGMISSIE",
+      "today": "VANDAAG",
+      "rush": "RUSH",
+      "starCount": "Aantal sterren",
+      "startRush": "Start rush",
+      "noActiveRush": "Geen actieve rush",
+      "tasksDescription": "Voltooi tricks en grinds om wheels te verdienen.",
+      "shopDescription": "Ontgrendel en equip nieuwe wielsets.",
+      "lightMode": "Lichte modus",
+      "lightModeDescription": "Verander de belichting en het thema.",
+      "language": "Taal",
+      "keyboardShortcut": "Sneltoets",
+      "on": "Aan",
+      "off": "Uit",
+      "skateboardModel": "Skateboardmodel",
+      "by": "van",
+      "via": "via",
+      "starAsset": "Ster van",
+      "creditsThanks": "Met dank aan",
+      "noTasks": "Geen taken beschikbaar.",
+      "equip": "Equip",
+      "equipped": "Actief",
+      "price": "{amount} wheels",
+      "dailyDone": "Voltooid",
+      "noStars": "Geen sterren gevonden. Zorg dat 'objective_collective' in de namen van mapobjecten staat.",
+      "taskDo": "Doe {target} {type}",
+      "taskStart": "Start {target} {type}",
+      "taskLand": "Land {target} {type}",
+      "taskAllround": "Doe {target} tricks van alles",
+      "taskCombo": "Doe {target} grinds en {target} flips",
+      "taskSpeedrun": "Start {target} grinds snel achter elkaar",
+      "taskAir": "Land {target} airtricks",
+      "typeGrind": "grinds",
+      "typeTricks": "tricks",
+      "typeFlips": "flips",
+      "typeShuvit": "shuvits",
+      "typeManual": "manuals",
+      "typeKickflip": "kickflips",
+      "typeHeelflip": "heelflips",
+      "dailyKickflip": "Doe {target} kickflips",
+      "dailyHeelflip": "Doe {target} heelflips",
+      "dailyGrind": "Start {target} grinds (Q)",
+      "dailyShuvit": "Doe {target} shuvits",
+      "dailyTricks": "Land {target} tricks",
+      "controlsHint": "{movement} bewegen | {push} push | {ollie} ollie | {grind} grind | {switchWheels} wielen | {menu} menu | {settings} instellingen | {shuvitControl} | {trickControl}",
+      "type360flip": "360 flips",
+      "typeVarialflip": "varial flips",
+      "typeHardflip": "hardflips",
+      "typeInwardheel": "inward heels",
+      "type360shuvit": "360 shuvits",
+      "typeBigspin": "bigspins",
+      "typeOllie": "ollies",
+      "typeVarialshuvit": "varial shuvits",
+      "typeLaserflip": "laser flips",
+      "typePressureflip": "pressure flips"
+    },
+    "es": {
+      "loading": "Cargando...",
+      "boardPreview": "Vista 3D de tu monopatín",
+      "loadingError": "Error al cargar",
+      "daily": "Diaria",
+      "wheels": "Ruedas",
+      "wheelHint": "V = cambiar",
+      "currentSetup": "Configuración actual",
+      "skateMenu": "Menú de skate",
+      "settings": "Ajustes",
+      "closeMenu": "Cerrar menú",
+      "menuCloseHint": "{menu} = cerrar menú",
+      "menuSections": "Secciones del menú",
+      "missions": "Misiones",
+      "tasks": "Tareas",
+      "shop": "Tienda",
+      "credits": "Créditos",
+      "dailyMission": "MISIÓN DIARIA",
+      "today": "HOY",
+      "rush": "RUSH",
+      "starCount": "Estrellas para recoger",
+      "startRush": "Iniciar Rush",
+      "noActiveRush": "No hay un Rush activo",
+      "tasksDescription": "Completa trucos y grinds para ganar ruedas.",
+      "shopDescription": "Desbloquea y equipa nuevos juegos de ruedas.",
+      "lightMode": "Modo claro",
+      "lightModeDescription": "Cambia la iluminación y el tema de la interfaz.",
+      "language": "Idioma",
+      "keyboardShortcut": "Atajo de teclado",
+      "on": "Activado",
+      "off": "Desactivado",
+      "skateboardModel": "Modelo de monopatín",
+      "by": "de",
+      "via": "vía",
+      "starAsset": "Estrella de",
+      "creditsThanks": "Gracias a",
+      "noTasks": "No hay tareas disponibles.",
+      "equip": "Equipar",
+      "equipped": "Equipadas",
+      "price": "{amount} ruedas",
+      "dailyDone": "Completada",
+      "noStars": "No se encontraron estrellas. Asegúrate de que los objetos del mapa incluyan 'objective_collective' en su nombre.",
+      "taskDo": "Haz {target} {type}",
+      "taskStart": "Inicia {target} {type}",
+      "taskLand": "Aterriza {target} {type}",
+      "taskAllround": "Haz {target} trucos variados",
+      "taskCombo": "Haz {target} grinds y {target} flips",
+      "taskSpeedrun": "Inicia {target} grinds seguidos",
+      "taskAir": "Aterriza {target} trucos aéreos",
+      "typeGrind": "grinds",
+      "typeTricks": "trucos",
+      "typeFlips": "flips",
+      "typeShuvit": "shuvits",
+      "typeManual": "manuals",
+      "typeKickflip": "kickflips",
+      "typeHeelflip": "heelflips",
+      "dailyKickflip": "Haz {target} kickflips",
+      "dailyHeelflip": "Haz {target} heelflips",
+      "dailyGrind": "Inicia {target} grinds (Q)",
+      "dailyShuvit": "Haz {target} shuvits",
+      "dailyTricks": "Aterriza {target} trucos",
+      "controlsHint": "{movement} moverse | {push} impulsarse | {ollie} ollie | {grind} grind | {switchWheels} ruedas | {menu} menú | {settings} ajustes | {shuvitControl} | {trickControl}",
+      "type360flip": "360 flips",
+      "typeVarialflip": "varial flips",
+      "typeHardflip": "hardflips",
+      "typeInwardheel": "inward heels",
+      "type360shuvit": "360 shuvits",
+      "typeBigspin": "bigspins",
+      "typeOllie": "ollies",
+      "typeVarialshuvit": "varial shuvits",
+      "typeLaserflip": "laser flips",
+      "typePressureflip": "pressure flips"
+    },
+    "de": {
+      "loading": "Laden...",
+      "boardPreview": "3D-Vorschau deines Skateboards",
+      "loadingError": "Ladefehler",
+      "daily": "Täglich",
+      "wheels": "Räder",
+      "wheelHint": "V = wechseln",
+      "currentSetup": "Aktuelles Setup",
+      "skateMenu": "Skate-Menü",
+      "settings": "Einstellungen",
+      "closeMenu": "Menü schließen",
+      "menuCloseHint": "{menu} = Menü schließen",
+      "menuSections": "Menübereiche",
+      "missions": "Missionen",
+      "tasks": "Aufgaben",
+      "shop": "Shop",
+      "credits": "Credits",
+      "dailyMission": "TAGESMISSION",
+      "today": "HEUTE",
+      "rush": "RUSH",
+      "starCount": "Sterne sammeln",
+      "startRush": "Rush starten",
+      "noActiveRush": "Kein Rush aktiv",
+      "tasksDescription": "Schließe Tricks und Grinds ab, um Räder zu verdienen.",
+      "shopDescription": "Schalte neue Radsätze frei und rüste sie aus.",
+      "lightMode": "Heller Modus",
+      "lightModeDescription": "Ändere Beleuchtung und Oberflächendesign.",
+      "language": "Sprache",
+      "keyboardShortcut": "Tastenkürzel",
+      "on": "An",
+      "off": "Aus",
+      "skateboardModel": "Skateboard-Modell",
+      "by": "von",
+      "via": "über",
+      "starAsset": "Stern von",
+      "creditsThanks": "Vielen Dank an",
+      "noTasks": "Keine Aufgaben verfügbar.",
+      "equip": "Ausrüsten",
+      "equipped": "Ausgerüstet",
+      "price": "{amount} Räder",
+      "dailyDone": "Abgeschlossen",
+      "noStars": "Keine Sterne gefunden. Der Name von Kartenobjekten muss 'objective_collective' enthalten.",
+      "taskDo": "Mache {target} {type}",
+      "taskStart": "Starte {target} {type}",
+      "taskLand": "Lande {target} {type}",
+      "taskAllround": "Mache {target} verschiedene Tricks",
+      "taskCombo": "Mache {target} Grinds und {target} Flips",
+      "taskSpeedrun": "Starte {target} Grinds hintereinander",
+      "taskAir": "Lande {target} Lufttricks",
+      "typeGrind": "Grinds",
+      "typeTricks": "Tricks",
+      "typeFlips": "Flips",
+      "typeShuvit": "Shuvits",
+      "typeManual": "Manuals",
+      "typeKickflip": "Kickflips",
+      "typeHeelflip": "Heelflips",
+      "dailyKickflip": "Mache {target} Kickflips",
+      "dailyHeelflip": "Mache {target} Heelflips",
+      "dailyGrind": "Starte {target} Grinds (Q)",
+      "dailyShuvit": "Mache {target} Shuvits",
+      "dailyTricks": "Lande {target} Tricks",
+      "controlsHint": "{movement} bewegen | {push} pushen | {ollie} Ollie | {grind} Grind | {switchWheels} Räder | {menu} Menü | {settings} Einstellungen | {shuvitControl} | {trickControl}",
+      "type360flip": "360 Flips",
+      "typeVarialflip": "Varial Flips",
+      "typeHardflip": "Hardflips",
+      "typeInwardheel": "Inward Heels",
+      "type360shuvit": "360 Shuvits",
+      "typeBigspin": "Bigspins",
+      "typeOllie": "Ollies",
+      "typeVarialshuvit": "Varial Shuvits",
+      "typeLaserflip": "Laser Flips",
+      "typePressureflip": "Pressure Flips"
+    },
+    "fr": {
+      "loading": "Chargement...",
+      "boardPreview": "Aperçu 3D de ton skateboard",
+      "loadingError": "Erreur de chargement",
+      "daily": "Quotidien",
+      "wheels": "Roues",
+      "wheelHint": "V = changer",
+      "currentSetup": "Configuration actuelle",
+      "skateMenu": "Menu skate",
+      "settings": "Paramètres",
+      "closeMenu": "Fermer le menu",
+      "menuCloseHint": "{menu} = fermer le menu",
+      "menuSections": "Sections du menu",
+      "missions": "Missions",
+      "tasks": "Tâches",
+      "shop": "Boutique",
+      "credits": "Crédits",
+      "dailyMission": "MISSION DU JOUR",
+      "today": "AUJOURD'HUI",
+      "rush": "RUSH",
+      "starCount": "Étoiles à collecter",
+      "startRush": "Démarrer le Rush",
+      "noActiveRush": "Aucun Rush actif",
+      "tasksDescription": "Réussis des figures et des grinds pour gagner des roues.",
+      "shopDescription": "Débloque et équipe de nouveaux jeux de roues.",
+      "lightMode": "Mode clair",
+      "lightModeDescription": "Modifie l'éclairage et le thème de l'interface.",
+      "language": "Langue",
+      "keyboardShortcut": "Raccourci clavier",
+      "on": "Activé",
+      "off": "Désactivé",
+      "skateboardModel": "Modèle de skateboard",
+      "by": "par",
+      "via": "via",
+      "starAsset": "Étoile par",
+      "creditsThanks": "Merci à",
+      "noTasks": "Aucune tâche disponible.",
+      "equip": "Équiper",
+      "equipped": "Équipées",
+      "price": "{amount} roues",
+      "dailyDone": "Terminé",
+      "noStars": "Aucune étoile trouvée. Le nom des objets de la carte doit contenir 'objective_collective'.",
+      "taskDo": "Fais {target} {type}",
+      "taskStart": "Commence {target} {type}",
+      "taskLand": "Réussis {target} {type}",
+      "taskAllround": "Fais {target} figures variées",
+      "taskCombo": "Fais {target} grinds et {target} flips",
+      "taskSpeedrun": "Commence {target} grinds à la suite",
+      "taskAir": "Réussis {target} figures aériennes",
+      "typeGrind": "grinds",
+      "typeTricks": "figures",
+      "typeFlips": "flips",
+      "typeShuvit": "shuvits",
+      "typeManual": "manuals",
+      "typeKickflip": "kickflips",
+      "typeHeelflip": "heelflips",
+      "dailyKickflip": "Fais {target} kickflips",
+      "dailyHeelflip": "Fais {target} heelflips",
+      "dailyGrind": "Commence {target} grinds (Q)",
+      "dailyShuvit": "Fais {target} shuvits",
+      "dailyTricks": "Réussis {target} figures",
+      "controlsHint": "{movement} bouger | {push} pousser | {ollie} ollie | {grind} grind | {switchWheels} roues | {menu} menu | {settings} paramètres | {shuvitControl} | {trickControl}",
+      "type360flip": "360 flips",
+      "typeVarialflip": "varial flips",
+      "typeHardflip": "hardflips",
+      "typeInwardheel": "inward heels",
+      "type360shuvit": "360 shuvits",
+      "typeBigspin": "bigspins",
+      "typeOllie": "ollies",
+      "typeVarialshuvit": "varial shuvits",
+      "typeLaserflip": "laser flips",
+      "typePressureflip": "pressure flips"
+    }
+  },
+  "tasks": [
+    {
+      "id": "grind3",
+      "label": "Start 3 grinds",
+      "target": 3,
+      "reward": 5,
+      "type": "grind"
+    },
+    {
+      "id": "grind5",
+      "label": "Start 5 grinds",
+      "target": 5,
+      "reward": 8,
+      "type": "grind"
+    },
+    {
+      "id": "grind8",
+      "label": "Start 8 grinds",
+      "target": 8,
+      "reward": 12,
+      "type": "grind"
+    },
+    {
+      "id": "grind12",
+      "label": "Start 12 grinds",
+      "target": 12,
+      "reward": 18,
+      "type": "grind"
+    },
+    {
+      "id": "flip5",
+      "label": "Doe 5 flips",
+      "target": 5,
+      "reward": 6,
+      "type": "tricks"
+    },
+    {
+      "id": "flip8",
+      "label": "Doe 8 flips",
+      "target": 8,
+      "reward": 10,
+      "type": "tricks"
+    },
+    {
+      "id": "flip12",
+      "label": "Doe 12 flips",
+      "target": 12,
+      "reward": 15,
+      "type": "tricks"
+    },
+    {
+      "id": "flip20",
+      "label": "Doe 20 flips",
+      "target": 20,
+      "reward": 25,
+      "type": "tricks"
+    },
+    {
+      "id": "shuvit4",
+      "label": "Doe 4 shuvits",
+      "target": 4,
+      "reward": 6,
+      "type": "shuvit"
+    },
+    {
+      "id": "shuvit6",
+      "label": "Doe 6 shuvits",
+      "target": 6,
+      "reward": 8,
+      "type": "shuvit"
+    },
+    {
+      "id": "shuvit10",
+      "label": "Doe 10 shuvits",
+      "target": 10,
+      "reward": 14,
+      "type": "shuvit"
+    },
+    {
+      "id": "shuvit15",
+      "label": "Doe 15 shuvits",
+      "target": 15,
+      "reward": 20,
+      "type": "shuvit"
+    },
+    {
+      "id": "manual3",
+      "label": "Doe 3 manuals",
+      "target": 3,
+      "reward": 5,
+      "type": "manual"
+    },
+    {
+      "id": "manual5",
+      "label": "Doe 5 manuals",
+      "target": 5,
+      "reward": 8,
+      "type": "manual"
+    },
+    {
+      "id": "manual8",
+      "label": "Doe 8 manuals",
+      "target": 8,
+      "reward": 12,
+      "type": "manual"
+    },
+    {
+      "id": "kickflip3",
+      "label": "Doe 3 kickflips",
+      "target": 3,
+      "reward": 7,
+      "type": "kickflip"
+    },
+    {
+      "id": "kickflip6",
+      "label": "Doe 6 kickflips",
+      "target": 6,
+      "reward": 12,
+      "type": "kickflip"
+    },
+    {
+      "id": "kickflip10",
+      "label": "Doe 10 kickflips",
+      "target": 10,
+      "reward": 18,
+      "type": "kickflip"
+    },
+    {
+      "id": "heelflip3",
+      "label": "Doe 3 heelflips",
+      "target": 3,
+      "reward": 7,
+      "type": "heelflip"
+    },
+    {
+      "id": "heelflip6",
+      "label": "Doe 6 heelflips",
+      "target": 6,
+      "reward": 12,
+      "type": "heelflip"
+    },
+    {
+      "id": "heelflip10",
+      "label": "Doe 10 heelflips",
+      "target": 10,
+      "reward": 18,
+      "type": "heelflip"
+    },
+    {
+      "id": "grind_flip",
+      "label": "Doe 4 grinds en 4 flips",
+      "target": 4,
+      "reward": 15,
+      "type": "grind"
+    },
+    {
+      "id": "speedrun_grind",
+      "label": "Start 6 grinds snel achter elkaar",
+      "target": 6,
+      "reward": 10,
+      "type": "grind"
+    },
+    {
+      "id": "air_tricks",
+      "label": "Land 10 air tricks",
+      "target": 10,
+      "reward": 14,
+      "type": "tricks"
+    },
+    {
+      "id": "shuvit_master",
+      "label": "Doe 8 shuvits",
+      "target": 8,
+      "reward": 11,
+      "type": "shuvit"
+    },
+    {
+      "id": "manual_king",
+      "label": "Doe 6 manuals",
+      "target": 6,
+      "reward": 9,
+      "type": "manual"
+    },
+    {
+      "id": "flip_combo",
+      "label": "Doe 15 flips",
+      "target": 15,
+      "reward": 20,
+      "type": "tricks"
+    },
+    {
+      "id": "grind_legend",
+      "label": "Start 15 grinds",
+      "target": 15,
+      "reward": 22,
+      "type": "grind"
+    },
+    {
+      "id": "allround1",
+      "label": "Doe 5 van alles",
+      "target": 5,
+      "reward": 12,
+      "type": "tricks"
+    },
+    {
+      "id": "allround2",
+      "label": "Doe 10 van alles",
+      "target": 10,
+      "reward": 20,
+      "type": "tricks"
+    },
+    {
+      "id": "persistent",
+      "label": "Doe 25 tricks",
+      "target": 25,
+      "reward": 30,
+      "type": "tricks"
+    },
+    {
+      "id": "grind_addict",
+      "label": "Start 20 grinds",
+      "target": 20,
+      "reward": 28,
+      "type": "grind"
+    },
+    {
+      "id": "shuvit_addict",
+      "label": "Doe 12 shuvits",
+      "target": 12,
+      "reward": 16,
+      "type": "shuvit"
+    },
+    {
+      "id": "manual_addict",
+      "label": "Doe 10 manuals",
+      "target": 10,
+      "reward": 14,
+      "type": "manual"
+    },
+    {
+      "id": "kickflip_pro",
+      "label": "Doe 8 kickflips",
+      "target": 8,
+      "reward": 14,
+      "type": "kickflip"
+    },
+    {
+      "id": "heelflip_pro",
+      "label": "Doe 8 heelflips",
+      "target": 8,
+      "reward": 14,
+      "type": "heelflip"
+    },
+    {
+      "id": "warm_up",
+      "label": "Doe 3 tricks",
+      "target": 3,
+      "reward": 4,
+      "type": "tricks"
+    },
+    {
+      "id": "session",
+      "label": "Doe 30 tricks",
+      "target": 30,
+      "reward": 35,
+      "type": "tricks"
+    },
+    {
+      "id": "rail_rider",
+      "label": "Start 10 grinds",
+      "target": 10,
+      "reward": 15,
+      "type": "grind"
+    },
+    {
+      "id": "spin_doctor",
+      "label": "Doe 7 shuvits",
+      "target": 7,
+      "reward": 10,
+      "type": "shuvit"
+    },
+    {
+      "id": "skill_grind_01",
+      "type": "grind",
+      "target": 1,
+      "reward": 1,
+      "verb": "start"
+    },
+    {
+      "id": "skill_grind_02",
+      "type": "grind",
+      "target": 2,
+      "reward": 3,
+      "verb": "start"
+    },
+    {
+      "id": "skill_grind_03",
+      "type": "grind",
+      "target": 3,
+      "reward": 4,
+      "verb": "start"
+    },
+    {
+      "id": "skill_grind_04",
+      "type": "grind",
+      "target": 4,
+      "reward": 6,
+      "verb": "start"
+    },
+    {
+      "id": "skill_grind_05",
+      "type": "grind",
+      "target": 5,
+      "reward": 7,
+      "verb": "start"
+    },
+    {
+      "id": "skill_grind_06",
+      "type": "grind",
+      "target": 6,
+      "reward": 8,
+      "verb": "start"
+    },
+    {
+      "id": "skill_grind_07",
+      "type": "grind",
+      "target": 8,
+      "reward": 11,
+      "verb": "start"
+    },
+    {
+      "id": "skill_grind_08",
+      "type": "grind",
+      "target": 10,
+      "reward": 14,
+      "verb": "start"
+    },
+    {
+      "id": "skill_grind_09",
+      "type": "grind",
+      "target": 12,
+      "reward": 17,
+      "verb": "start"
+    },
+    {
+      "id": "skill_grind_10",
+      "type": "grind",
+      "target": 15,
+      "reward": 21,
+      "verb": "start"
+    },
+    {
+      "id": "skill_shuvit_01",
+      "type": "shuvit",
+      "target": 1,
+      "reward": 1,
+      "verb": "do"
+    },
+    {
+      "id": "skill_shuvit_02",
+      "type": "shuvit",
+      "target": 2,
+      "reward": 3,
+      "verb": "do"
+    },
+    {
+      "id": "skill_shuvit_03",
+      "type": "shuvit",
+      "target": 3,
+      "reward": 4,
+      "verb": "do"
+    },
+    {
+      "id": "skill_shuvit_04",
+      "type": "shuvit",
+      "target": 4,
+      "reward": 6,
+      "verb": "do"
+    },
+    {
+      "id": "skill_shuvit_05",
+      "type": "shuvit",
+      "target": 5,
+      "reward": 7,
+      "verb": "do"
+    },
+    {
+      "id": "skill_shuvit_06",
+      "type": "shuvit",
+      "target": 6,
+      "reward": 8,
+      "verb": "do"
+    },
+    {
+      "id": "skill_shuvit_07",
+      "type": "shuvit",
+      "target": 8,
+      "reward": 11,
+      "verb": "do"
+    },
+    {
+      "id": "skill_shuvit_08",
+      "type": "shuvit",
+      "target": 10,
+      "reward": 14,
+      "verb": "do"
+    },
+    {
+      "id": "skill_shuvit_09",
+      "type": "shuvit",
+      "target": 12,
+      "reward": 17,
+      "verb": "do"
+    },
+    {
+      "id": "skill_shuvit_10",
+      "type": "shuvit",
+      "target": 15,
+      "reward": 21,
+      "verb": "do"
+    },
+    {
+      "id": "skill_manual_01",
+      "type": "manual",
+      "target": 1,
+      "reward": 1,
+      "verb": "do"
+    },
+    {
+      "id": "skill_manual_02",
+      "type": "manual",
+      "target": 2,
+      "reward": 3,
+      "verb": "do"
+    },
+    {
+      "id": "skill_manual_03",
+      "type": "manual",
+      "target": 3,
+      "reward": 4,
+      "verb": "do"
+    },
+    {
+      "id": "skill_manual_04",
+      "type": "manual",
+      "target": 4,
+      "reward": 6,
+      "verb": "do"
+    },
+    {
+      "id": "skill_manual_05",
+      "type": "manual",
+      "target": 5,
+      "reward": 7,
+      "verb": "do"
+    },
+    {
+      "id": "skill_manual_06",
+      "type": "manual",
+      "target": 6,
+      "reward": 8,
+      "verb": "do"
+    },
+    {
+      "id": "skill_manual_07",
+      "type": "manual",
+      "target": 8,
+      "reward": 11,
+      "verb": "do"
+    },
+    {
+      "id": "skill_manual_08",
+      "type": "manual",
+      "target": 10,
+      "reward": 14,
+      "verb": "do"
+    },
+    {
+      "id": "skill_manual_09",
+      "type": "manual",
+      "target": 12,
+      "reward": 17,
+      "verb": "do"
+    },
+    {
+      "id": "skill_manual_10",
+      "type": "manual",
+      "target": 15,
+      "reward": 21,
+      "verb": "do"
+    },
+    {
+      "id": "skill_kickflip_01",
+      "type": "kickflip",
+      "target": 1,
+      "reward": 1,
+      "verb": "do"
+    },
+    {
+      "id": "skill_kickflip_02",
+      "type": "kickflip",
+      "target": 2,
+      "reward": 3,
+      "verb": "do"
+    },
+    {
+      "id": "skill_kickflip_03",
+      "type": "kickflip",
+      "target": 3,
+      "reward": 4,
+      "verb": "do"
+    },
+    {
+      "id": "skill_kickflip_04",
+      "type": "kickflip",
+      "target": 4,
+      "reward": 6,
+      "verb": "do"
+    },
+    {
+      "id": "skill_kickflip_05",
+      "type": "kickflip",
+      "target": 5,
+      "reward": 7,
+      "verb": "do"
+    },
+    {
+      "id": "skill_kickflip_06",
+      "type": "kickflip",
+      "target": 6,
+      "reward": 8,
+      "verb": "do"
+    },
+    {
+      "id": "skill_kickflip_07",
+      "type": "kickflip",
+      "target": 8,
+      "reward": 11,
+      "verb": "do"
+    },
+    {
+      "id": "skill_kickflip_08",
+      "type": "kickflip",
+      "target": 10,
+      "reward": 14,
+      "verb": "do"
+    },
+    {
+      "id": "skill_kickflip_09",
+      "type": "kickflip",
+      "target": 12,
+      "reward": 17,
+      "verb": "do"
+    },
+    {
+      "id": "skill_kickflip_10",
+      "type": "kickflip",
+      "target": 15,
+      "reward": 21,
+      "verb": "do"
+    },
+    {
+      "id": "skill_heelflip_01",
+      "type": "heelflip",
+      "target": 1,
+      "reward": 1,
+      "verb": "do"
+    },
+    {
+      "id": "skill_heelflip_02",
+      "type": "heelflip",
+      "target": 2,
+      "reward": 3,
+      "verb": "do"
+    },
+    {
+      "id": "skill_heelflip_03",
+      "type": "heelflip",
+      "target": 3,
+      "reward": 4,
+      "verb": "do"
+    },
+    {
+      "id": "skill_heelflip_04",
+      "type": "heelflip",
+      "target": 4,
+      "reward": 6,
+      "verb": "do"
+    },
+    {
+      "id": "skill_heelflip_05",
+      "type": "heelflip",
+      "target": 5,
+      "reward": 7,
+      "verb": "do"
+    },
+    {
+      "id": "skill_heelflip_06",
+      "type": "heelflip",
+      "target": 6,
+      "reward": 8,
+      "verb": "do"
+    },
+    {
+      "id": "skill_heelflip_07",
+      "type": "heelflip",
+      "target": 8,
+      "reward": 11,
+      "verb": "do"
+    },
+    {
+      "id": "skill_heelflip_08",
+      "type": "heelflip",
+      "target": 10,
+      "reward": 14,
+      "verb": "do"
+    },
+    {
+      "id": "skill_heelflip_09",
+      "type": "heelflip",
+      "target": 12,
+      "reward": 17,
+      "verb": "do"
+    },
+    {
+      "id": "skill_heelflip_10",
+      "type": "heelflip",
+      "target": 15,
+      "reward": 21,
+      "verb": "do"
+    },
+    {
+      "id": "skill_360flip_01",
+      "type": "360flip",
+      "target": 1,
+      "reward": 3,
+      "verb": "do"
+    },
+    {
+      "id": "skill_360flip_02",
+      "type": "360flip",
+      "target": 2,
+      "reward": 5,
+      "verb": "do"
+    },
+    {
+      "id": "skill_360flip_03",
+      "type": "360flip",
+      "target": 3,
+      "reward": 6,
+      "verb": "do"
+    },
+    {
+      "id": "skill_360flip_04",
+      "type": "360flip",
+      "target": 4,
+      "reward": 8,
+      "verb": "do"
+    },
+    {
+      "id": "skill_360flip_05",
+      "type": "360flip",
+      "target": 5,
+      "reward": 9,
+      "verb": "do"
+    },
+    {
+      "id": "skill_360flip_06",
+      "type": "360flip",
+      "target": 6,
+      "reward": 10,
+      "verb": "do"
+    },
+    {
+      "id": "skill_360flip_07",
+      "type": "360flip",
+      "target": 8,
+      "reward": 13,
+      "verb": "do"
+    },
+    {
+      "id": "skill_360flip_08",
+      "type": "360flip",
+      "target": 10,
+      "reward": 16,
+      "verb": "do"
+    },
+    {
+      "id": "skill_360flip_09",
+      "type": "360flip",
+      "target": 12,
+      "reward": 19,
+      "verb": "do"
+    },
+    {
+      "id": "skill_360flip_10",
+      "type": "360flip",
+      "target": 15,
+      "reward": 23,
+      "verb": "do"
+    },
+    {
+      "id": "skill_varialflip_01",
+      "type": "varialflip",
+      "target": 1,
+      "reward": 1,
+      "verb": "do"
+    },
+    {
+      "id": "skill_varialflip_02",
+      "type": "varialflip",
+      "target": 2,
+      "reward": 3,
+      "verb": "do"
+    },
+    {
+      "id": "skill_varialflip_03",
+      "type": "varialflip",
+      "target": 3,
+      "reward": 4,
+      "verb": "do"
+    },
+    {
+      "id": "skill_varialflip_04",
+      "type": "varialflip",
+      "target": 4,
+      "reward": 6,
+      "verb": "do"
+    },
+    {
+      "id": "skill_varialflip_05",
+      "type": "varialflip",
+      "target": 5,
+      "reward": 7,
+      "verb": "do"
+    },
+    {
+      "id": "skill_varialflip_06",
+      "type": "varialflip",
+      "target": 6,
+      "reward": 8,
+      "verb": "do"
+    },
+    {
+      "id": "skill_varialflip_07",
+      "type": "varialflip",
+      "target": 8,
+      "reward": 11,
+      "verb": "do"
+    },
+    {
+      "id": "skill_varialflip_08",
+      "type": "varialflip",
+      "target": 10,
+      "reward": 14,
+      "verb": "do"
+    },
+    {
+      "id": "skill_varialflip_09",
+      "type": "varialflip",
+      "target": 12,
+      "reward": 17,
+      "verb": "do"
+    },
+    {
+      "id": "skill_varialflip_10",
+      "type": "varialflip",
+      "target": 15,
+      "reward": 21,
+      "verb": "do"
+    },
+    {
+      "id": "skill_hardflip_01",
+      "type": "hardflip",
+      "target": 1,
+      "reward": 3,
+      "verb": "do"
+    },
+    {
+      "id": "skill_hardflip_02",
+      "type": "hardflip",
+      "target": 2,
+      "reward": 5,
+      "verb": "do"
+    },
+    {
+      "id": "skill_hardflip_03",
+      "type": "hardflip",
+      "target": 3,
+      "reward": 6,
+      "verb": "do"
+    },
+    {
+      "id": "skill_hardflip_04",
+      "type": "hardflip",
+      "target": 4,
+      "reward": 8,
+      "verb": "do"
+    },
+    {
+      "id": "skill_hardflip_05",
+      "type": "hardflip",
+      "target": 5,
+      "reward": 9,
+      "verb": "do"
+    },
+    {
+      "id": "skill_hardflip_06",
+      "type": "hardflip",
+      "target": 6,
+      "reward": 10,
+      "verb": "do"
+    },
+    {
+      "id": "skill_hardflip_07",
+      "type": "hardflip",
+      "target": 8,
+      "reward": 13,
+      "verb": "do"
+    },
+    {
+      "id": "skill_hardflip_08",
+      "type": "hardflip",
+      "target": 10,
+      "reward": 16,
+      "verb": "do"
+    },
+    {
+      "id": "skill_hardflip_09",
+      "type": "hardflip",
+      "target": 12,
+      "reward": 19,
+      "verb": "do"
+    },
+    {
+      "id": "skill_hardflip_10",
+      "type": "hardflip",
+      "target": 15,
+      "reward": 23,
+      "verb": "do"
+    },
+    {
+      "id": "skill_inwardheel_01",
+      "type": "inwardheel",
+      "target": 1,
+      "reward": 3,
+      "verb": "do"
+    },
+    {
+      "id": "skill_inwardheel_02",
+      "type": "inwardheel",
+      "target": 2,
+      "reward": 5,
+      "verb": "do"
+    },
+    {
+      "id": "skill_inwardheel_03",
+      "type": "inwardheel",
+      "target": 3,
+      "reward": 6,
+      "verb": "do"
+    },
+    {
+      "id": "skill_inwardheel_04",
+      "type": "inwardheel",
+      "target": 4,
+      "reward": 8,
+      "verb": "do"
+    },
+    {
+      "id": "skill_inwardheel_05",
+      "type": "inwardheel",
+      "target": 5,
+      "reward": 9,
+      "verb": "do"
+    },
+    {
+      "id": "skill_inwardheel_06",
+      "type": "inwardheel",
+      "target": 6,
+      "reward": 10,
+      "verb": "do"
+    },
+    {
+      "id": "skill_inwardheel_07",
+      "type": "inwardheel",
+      "target": 8,
+      "reward": 13,
+      "verb": "do"
+    },
+    {
+      "id": "skill_inwardheel_08",
+      "type": "inwardheel",
+      "target": 10,
+      "reward": 16,
+      "verb": "do"
+    },
+    {
+      "id": "skill_inwardheel_09",
+      "type": "inwardheel",
+      "target": 12,
+      "reward": 19,
+      "verb": "do"
+    },
+    {
+      "id": "skill_inwardheel_10",
+      "type": "inwardheel",
+      "target": 15,
+      "reward": 23,
+      "verb": "do"
+    },
+    {
+      "id": "skill_360shuvit_01",
+      "type": "360shuvit",
+      "target": 1,
+      "reward": 3,
+      "verb": "do"
+    },
+    {
+      "id": "skill_360shuvit_02",
+      "type": "360shuvit",
+      "target": 2,
+      "reward": 5,
+      "verb": "do"
+    },
+    {
+      "id": "skill_360shuvit_03",
+      "type": "360shuvit",
+      "target": 3,
+      "reward": 6,
+      "verb": "do"
+    },
+    {
+      "id": "skill_360shuvit_04",
+      "type": "360shuvit",
+      "target": 4,
+      "reward": 8,
+      "verb": "do"
+    },
+    {
+      "id": "skill_360shuvit_05",
+      "type": "360shuvit",
+      "target": 5,
+      "reward": 9,
+      "verb": "do"
+    },
+    {
+      "id": "skill_360shuvit_06",
+      "type": "360shuvit",
+      "target": 6,
+      "reward": 10,
+      "verb": "do"
+    },
+    {
+      "id": "skill_360shuvit_07",
+      "type": "360shuvit",
+      "target": 8,
+      "reward": 13,
+      "verb": "do"
+    },
+    {
+      "id": "skill_360shuvit_08",
+      "type": "360shuvit",
+      "target": 10,
+      "reward": 16,
+      "verb": "do"
+    },
+    {
+      "id": "skill_360shuvit_09",
+      "type": "360shuvit",
+      "target": 12,
+      "reward": 19,
+      "verb": "do"
+    },
+    {
+      "id": "skill_360shuvit_10",
+      "type": "360shuvit",
+      "target": 15,
+      "reward": 23,
+      "verb": "do"
+    },
+    {
+      "id": "skill_bigspin_01",
+      "type": "bigspin",
+      "target": 1,
+      "reward": 3,
+      "verb": "do"
+    },
+    {
+      "id": "skill_bigspin_02",
+      "type": "bigspin",
+      "target": 2,
+      "reward": 5,
+      "verb": "do"
+    },
+    {
+      "id": "skill_bigspin_03",
+      "type": "bigspin",
+      "target": 3,
+      "reward": 6,
+      "verb": "do"
+    },
+    {
+      "id": "skill_bigspin_04",
+      "type": "bigspin",
+      "target": 4,
+      "reward": 8,
+      "verb": "do"
+    },
+    {
+      "id": "skill_bigspin_05",
+      "type": "bigspin",
+      "target": 5,
+      "reward": 9,
+      "verb": "do"
+    },
+    {
+      "id": "skill_bigspin_06",
+      "type": "bigspin",
+      "target": 6,
+      "reward": 10,
+      "verb": "do"
+    },
+    {
+      "id": "skill_bigspin_07",
+      "type": "bigspin",
+      "target": 8,
+      "reward": 13,
+      "verb": "do"
+    },
+    {
+      "id": "skill_bigspin_08",
+      "type": "bigspin",
+      "target": 10,
+      "reward": 16,
+      "verb": "do"
+    },
+    {
+      "id": "skill_bigspin_09",
+      "type": "bigspin",
+      "target": 12,
+      "reward": 19,
+      "verb": "do"
+    },
+    {
+      "id": "skill_bigspin_10",
+      "type": "bigspin",
+      "target": 15,
+      "reward": 23,
+      "verb": "do"
+    },
+    {
+      "id": "skill_ollie_01",
+      "type": "ollie",
+      "target": 1,
+      "reward": 1,
+      "verb": "do"
+    },
+    {
+      "id": "skill_ollie_02",
+      "type": "ollie",
+      "target": 2,
+      "reward": 3,
+      "verb": "do"
+    },
+    {
+      "id": "skill_ollie_03",
+      "type": "ollie",
+      "target": 3,
+      "reward": 4,
+      "verb": "do"
+    },
+    {
+      "id": "skill_ollie_04",
+      "type": "ollie",
+      "target": 4,
+      "reward": 6,
+      "verb": "do"
+    },
+    {
+      "id": "skill_ollie_05",
+      "type": "ollie",
+      "target": 5,
+      "reward": 7,
+      "verb": "do"
+    },
+    {
+      "id": "skill_ollie_06",
+      "type": "ollie",
+      "target": 6,
+      "reward": 8,
+      "verb": "do"
+    },
+    {
+      "id": "skill_ollie_07",
+      "type": "ollie",
+      "target": 8,
+      "reward": 11,
+      "verb": "do"
+    },
+    {
+      "id": "skill_ollie_08",
+      "type": "ollie",
+      "target": 10,
+      "reward": 14,
+      "verb": "do"
+    },
+    {
+      "id": "skill_ollie_09",
+      "type": "ollie",
+      "target": 12,
+      "reward": 17,
+      "verb": "do"
+    },
+    {
+      "id": "skill_ollie_10",
+      "type": "ollie",
+      "target": 15,
+      "reward": 21,
+      "verb": "do"
+    },
+    {
+      "id": "skill_varialshuvit_01",
+      "type": "varialshuvit",
+      "target": 1,
+      "reward": 1,
+      "verb": "do"
+    },
+    {
+      "id": "skill_varialshuvit_02",
+      "type": "varialshuvit",
+      "target": 2,
+      "reward": 3,
+      "verb": "do"
+    },
+    {
+      "id": "skill_varialshuvit_03",
+      "type": "varialshuvit",
+      "target": 3,
+      "reward": 4,
+      "verb": "do"
+    },
+    {
+      "id": "skill_varialshuvit_04",
+      "type": "varialshuvit",
+      "target": 4,
+      "reward": 6,
+      "verb": "do"
+    },
+    {
+      "id": "skill_varialshuvit_05",
+      "type": "varialshuvit",
+      "target": 5,
+      "reward": 7,
+      "verb": "do"
+    },
+    {
+      "id": "skill_varialshuvit_06",
+      "type": "varialshuvit",
+      "target": 6,
+      "reward": 8,
+      "verb": "do"
+    },
+    {
+      "id": "skill_varialshuvit_07",
+      "type": "varialshuvit",
+      "target": 8,
+      "reward": 11,
+      "verb": "do"
+    },
+    {
+      "id": "skill_varialshuvit_08",
+      "type": "varialshuvit",
+      "target": 10,
+      "reward": 14,
+      "verb": "do"
+    },
+    {
+      "id": "skill_varialshuvit_09",
+      "type": "varialshuvit",
+      "target": 12,
+      "reward": 17,
+      "verb": "do"
+    },
+    {
+      "id": "skill_varialshuvit_10",
+      "type": "varialshuvit",
+      "target": 15,
+      "reward": 21,
+      "verb": "do"
+    },
+    {
+      "id": "skill_laserflip_01",
+      "type": "laserflip",
+      "target": 1,
+      "reward": 3,
+      "verb": "do"
+    },
+    {
+      "id": "skill_laserflip_02",
+      "type": "laserflip",
+      "target": 2,
+      "reward": 5,
+      "verb": "do"
+    },
+    {
+      "id": "skill_laserflip_03",
+      "type": "laserflip",
+      "target": 3,
+      "reward": 6,
+      "verb": "do"
+    },
+    {
+      "id": "skill_laserflip_04",
+      "type": "laserflip",
+      "target": 4,
+      "reward": 8,
+      "verb": "do"
+    },
+    {
+      "id": "skill_laserflip_05",
+      "type": "laserflip",
+      "target": 5,
+      "reward": 9,
+      "verb": "do"
+    },
+    {
+      "id": "skill_laserflip_06",
+      "type": "laserflip",
+      "target": 6,
+      "reward": 10,
+      "verb": "do"
+    },
+    {
+      "id": "skill_laserflip_07",
+      "type": "laserflip",
+      "target": 8,
+      "reward": 13,
+      "verb": "do"
+    },
+    {
+      "id": "skill_laserflip_08",
+      "type": "laserflip",
+      "target": 10,
+      "reward": 16,
+      "verb": "do"
+    },
+    {
+      "id": "skill_laserflip_09",
+      "type": "laserflip",
+      "target": 12,
+      "reward": 19,
+      "verb": "do"
+    },
+    {
+      "id": "skill_laserflip_10",
+      "type": "laserflip",
+      "target": 15,
+      "reward": 23,
+      "verb": "do"
+    },
+    {
+      "id": "skill_pressureflip_01",
+      "type": "pressureflip",
+      "target": 1,
+      "reward": 3,
+      "verb": "do"
+    },
+    {
+      "id": "skill_pressureflip_02",
+      "type": "pressureflip",
+      "target": 2,
+      "reward": 5,
+      "verb": "do"
+    },
+    {
+      "id": "skill_pressureflip_03",
+      "type": "pressureflip",
+      "target": 3,
+      "reward": 6,
+      "verb": "do"
+    },
+    {
+      "id": "skill_pressureflip_04",
+      "type": "pressureflip",
+      "target": 4,
+      "reward": 8,
+      "verb": "do"
+    },
+    {
+      "id": "skill_pressureflip_05",
+      "type": "pressureflip",
+      "target": 5,
+      "reward": 9,
+      "verb": "do"
+    },
+    {
+      "id": "skill_pressureflip_06",
+      "type": "pressureflip",
+      "target": 6,
+      "reward": 10,
+      "verb": "do"
+    },
+    {
+      "id": "skill_pressureflip_07",
+      "type": "pressureflip",
+      "target": 8,
+      "reward": 13,
+      "verb": "do"
+    },
+    {
+      "id": "skill_pressureflip_08",
+      "type": "pressureflip",
+      "target": 10,
+      "reward": 16,
+      "verb": "do"
+    },
+    {
+      "id": "skill_pressureflip_09",
+      "type": "pressureflip",
+      "target": 12,
+      "reward": 19,
+      "verb": "do"
+    },
+    {
+      "id": "skill_pressureflip_10",
+      "type": "pressureflip",
+      "target": 15,
+      "reward": 23,
+      "verb": "do"
+    },
+    {
+      "id": "skill_tricks_01",
+      "type": "tricks",
+      "target": 1,
+      "reward": 1,
+      "verb": "do"
+    },
+    {
+      "id": "skill_tricks_02",
+      "type": "tricks",
+      "target": 2,
+      "reward": 3,
+      "verb": "do"
+    },
+    {
+      "id": "skill_tricks_03",
+      "type": "tricks",
+      "target": 3,
+      "reward": 4,
+      "verb": "do"
+    },
+    {
+      "id": "skill_tricks_04",
+      "type": "tricks",
+      "target": 4,
+      "reward": 6,
+      "verb": "do"
+    },
+    {
+      "id": "skill_tricks_05",
+      "type": "tricks",
+      "target": 5,
+      "reward": 7,
+      "verb": "do"
+    },
+    {
+      "id": "skill_tricks_06",
+      "type": "tricks",
+      "target": 6,
+      "reward": 8,
+      "verb": "do"
+    },
+    {
+      "id": "skill_tricks_07",
+      "type": "tricks",
+      "target": 8,
+      "reward": 11,
+      "verb": "do"
+    },
+    {
+      "id": "skill_tricks_08",
+      "type": "tricks",
+      "target": 10,
+      "reward": 14,
+      "verb": "do"
+    },
+    {
+      "id": "skill_tricks_09",
+      "type": "tricks",
+      "target": 12,
+      "reward": 17,
+      "verb": "do"
+    },
+    {
+      "id": "skill_tricks_10",
+      "type": "tricks",
+      "target": 15,
+      "reward": 21,
+      "verb": "do"
+    }
+  ]
+}

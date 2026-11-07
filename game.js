@@ -1,44 +1,105 @@
 
 const canvas = document.getElementById("renderCanvas");
 const engine = new BABYLON.Engine(canvas, true);
+let loadingScreenTimeout = null;
+let loadingRemovalTimeout = null;
+
+function readStoredValue(key, fallback = null) {
+    try {
+        return localStorage.getItem(key) ?? fallback;
+    } catch (error) {
+        console.warn(`Lokale instelling "${key}" kon niet worden gelezen:`, error);
+        return fallback;
+    }
+}
+
+function readStoredJSON(key, fallback, isValid = () => true) {
+    const stored = readStoredValue(key);
+    if (stored === null) return fallback;
+    try {
+        const value = JSON.parse(stored);
+        return isValid(value) ? value : fallback;
+    } catch (error) {
+        console.warn(`Opgeslagen gegevens "${key}" zijn ongeldig:`, error);
+        return fallback;
+    }
+}
+
+function writeStoredValue(key, value) {
+    try {
+        localStorage.setItem(key, value);
+    } catch (error) {
+        console.warn(`Lokale instelling "${key}" kon niet worden opgeslagen:`, error);
+    }
+}
+
+function removeStoredValue(key) {
+    try {
+        localStorage.removeItem(key);
+    } catch (error) {
+        console.warn(`Lokale instelling "${key}" kon niet worden verwijderd:`, error);
+    }
+}
 
 function hideLoadingScreen() {
     const el = document.getElementById("loadingScreen");
     if (!el) return;
+    clearTimeout(loadingScreenTimeout);
+    clearTimeout(loadingRemovalTimeout);
     el.classList.add("hidden");
-    setTimeout(() => {
+    loadingRemovalTimeout = setTimeout(() => {
         if (el.parentNode) el.remove();
     }, 450);
 }
 
 // Veiligheid: laadscherm altijd weghalen na max 12 seconden
-setTimeout(hideLoadingScreen, 12000);
+loadingScreenTimeout = setTimeout(hideLoadingScreen, 12000);
+
+function showLoadingError(error) {
+    clearTimeout(loadingScreenTimeout);
+    clearTimeout(loadingRemovalTimeout);
+    const el = document.getElementById("loadingScreen");
+    if (!el) return;
+    el.classList.remove("hidden");
+    el.replaceChildren();
+    const message = document.createElement("div");
+    message.style.cssText = "text-align:center;color:#f87171;font-family:system-ui;";
+    const title = document.createElement("h2");
+    title.textContent = translate("loadingError");
+    const details = document.createElement("p");
+    details.textContent = error.message || String(error);
+    message.append(title, details);
+    el.append(message);
+}
 
 // --- VERKORTE PHYSICS BOX VOOR RAMPS ---
-const PHYSICS_BOX_WIDTH = 2.5;
-const PHYSICS_BOX_HEIGHT = 0.4;
-const PHYSICS_BOX_DEPTH = 4.5;
-
-const SHOW_PHYSICS_OUTLINE = false;
+let GAME_SETTINGS = null;
+let PHYSICS_BOX_WIDTH = 2.5;
+let PHYSICS_BOX_HEIGHT = 0.4;
+let PHYSICS_BOX_DEPTH = 4.5;
+let SHOW_PHYSICS_OUTLINE = false;
 
 let speed = 0; 
-let pushpower = 28; // 4x hoger
+let pushpower = 28;
 let lastPushTime = 0;
-const PUSH_DELAY = 450; // ms tussen pushes        
-let maxSpeed = 70;        
-let SlowDownPower = 0.05; 
-let turnSpeed = 2;        
-let jumpPower = 300;       
+let PUSH_DELAY = 450;
+let maxSpeed = 70;
+let coastDeceleration = 0.05;
+let brakeDeceleration = 0.8;
+let SlowDownPower = coastDeceleration;
+let turnSpeed = 2;
+let jumpPower = 300;
 
 let ollieTimer = 0;
-const OLLIE_DURATION = 0.4; 
+let OLLIE_DURATION = 0.4;
 
 // --- MUIS CONTROLS ---
-const MOUSE_PITCH_SENSITIVITY = 0.04;
-const MOUSE_ROLL_SENSITIVITY = 0.12;
-const CAMERA_MOUSE_SENSITIVITY = 0.005;
-const FLIP_MOUSE_THRESHOLD = 38;
-const FLIP_DURATION = 0.45;
+let MOUSE_PITCH_SENSITIVITY = 0.04;
+let CAMERA_MOUSE_SENSITIVITY = 0.005;
+let FLIP_MOUSE_THRESHOLD = 38;
+let ADVANCED_FLIP_MULTIPLIER = 2.4;
+let VARIAL_FLIP_MULTIPLIER = 1.5;
+let FLIP_DURATION = 0.45;
 let mouseDeltaX = 0;
 let mouseDeltaY = 0;
 let isPointerLocked = false;
@@ -50,52 +111,50 @@ let cameraPitch = 0.85;
 let isFlipping = false;
 let flipDir = 0;
 let flipProgress = 0;
+let activeFlipType = "kickflip";
+let activeFlipYawTurns = 0;
 
 // Shuvit state (alleen visueel)
 let isShuviting = false;
 let shuvitDir = 0;
 let shuvitProgress = 0;
-const SHUVIT_DURATION = 0.32;
+let activeShuvitTurns = 1;
+let SHUVIT_DURATION = 0.32;
+let DOUBLE_SHUVIT_WINDOW_MS = 300;
+let LARGE_SHUVIT_DELTA = 180;
+let lastShuvitTime = Number.NEGATIVE_INFINITY;
 
 // Manual state
 let isManualing = false;
 let manualDir = 0;
 let manualProgress = 0;
-const MANUAL_DURATION = 0.55;
-const MANUAL_FLICK_THRESHOLD = 42;
-const MANUAL_PITCH_SPEED = 3.2;
+let MANUAL_DURATION = 0.55;
+let MANUAL_FLICK_THRESHOLD = 42;
+let MANUAL_PITCH_SPEED = 3.2;
 
 // Grind state + cylinder (pas deze 3 waardes aan voor de grootte)
 let isGrinding = false;
 let currentGrindMesh = null;
 let grindAxis = new BABYLON.Vector3(0, 0, 1);
 let grindOrigin = new BABYLON.Vector3();
-const GRIND_HEIGHT_OFFSET = 0.35;
-const GRIND_CYLINDER_DIAMETER = 10.2;   // detectie-volume
-const GRIND_CYLINDER_HEIGHT = 2.5;
-const BOARD_LINE_LENGTH = 4.2;         // lengte van de boardLine (pas aan)
-const BOARD_LINE_OFFSET_Y = -0.15;
+let GRIND_HEIGHT_OFFSET = 0.35;
+let GRIND_CYLINDER_DIAMETER = 10.2;
+let GRIND_CYLINDER_HEIGHT = 2.5;
+let BOARD_LINE_LENGTH = 4.2;
+let BOARD_LINE_OFFSET_Y = -0.15;
 
 // ========== BOARD CUSTOMIZATION ==========
-const AVAILABLE_WHEELS = [
-    "white",
-    "peach",
-    "blue",
-    "light_blue",
-    "light_green",
-    "orange",
-    "pink",
-    "purple",
-    "yellow"
-];
-let currentWheel = localStorage.getItem("acidin_wheel") || "white";
-if (!AVAILABLE_WHEELS.includes(currentWheel)) currentWheel = "white";
+let AVAILABLE_WHEELS = [];
+let currentWheel = readStoredValue("acidin_wheel", "white");
 let wheelMeshes = [];
 
 let boardAnimGroups = [];
 let idleAnim = null;
 let pushAnim = null;
 let ollieAnim = null;
+let kickflipAnim = null;
+let heelflipAnim = null;
+let activeTrickAnimation = null;
 let crouchAnim = null;
 let uncrouchAnim = null;
 let currentBoardAnim = null;
@@ -108,158 +167,170 @@ let previewEngine = null;
 let previewScene = null;
 let previewBoardRoot = null;
 let previewWheelMeshes = [];
-let isLightMode = localStorage.getItem("acidin_light_mode") === "true";
-const LANGUAGE_OPTIONS = ["en", "nl", "es", "de", "fr"];
-let currentLanguage = localStorage.getItem("acidin_language") || "en";
+let isLightMode = readStoredValue("acidin_light_mode") === "true";
+let LANGUAGE_OPTIONS = ["en", "nl", "es", "de", "fr"];
+let currentLanguage = readStoredValue("acidin_language", "en");
 if (!LANGUAGE_OPTIONS.includes(currentLanguage)) currentLanguage = "en";
 
-const LANGUAGE_STRINGS = {
-    en: {
-        loading: "Loading...", boardPreview: "3D preview of your skateboard", loadingError: "Loading error",
-        daily: "Daily", wheels: "Wheels", wheelHint: "V = change",
-        currentSetup: "Current setup", skateMenu: "Skate menu", settings: "Settings",
-        closeMenu: "Close menu", menuCloseHint: "T = close menu", menuSections: "Menu sections",
-        missions: "Missions", tasks: "Tasks", shop: "Shop", credits: "Credits",
-        dailyMission: "DAILY MISSION", today: "TODAY", rush: "RUSH",
-        starCount: "Stars to collect", startRush: "Start Rush", noActiveRush: "No active rush",
-        tasksDescription: "Complete tricks and grinds to earn wheels.",
-        shopDescription: "Unlock and equip new wheel sets.", lightMode: "Light mode",
-        lightModeDescription: "Change the lighting and interface theme.", language: "Language",
-        keyboardShortcut: "Keyboard shortcut", on: "On", off: "Off",
-        skateboardModel: "Skateboard model", by: "by", via: "via", starAsset: "Star by",
-        creditsThanks: "Thanks to",
-        noTasks: "No tasks available.", equip: "Equip", equipped: "Equipped",
-        price: "{amount} wheels", dailyDone: "Completed",
-        noStars: "No stars found. Make sure map objects include 'objective_collective' in their name.",
-        taskDo: "Do {target} {type}", taskStart: "Start {target} {type}",
-        taskLand: "Land {target} {type}", taskAllround: "Do {target} all-around tricks",
-        taskCombo: "Do {target} grinds and {target} flips",
-        taskSpeedrun: "Start {target} grinds in a row",
-        taskAir: "Land {target} aerial tricks",
-        typeGrind: "grinds", typeTricks: "tricks", typeFlips: "flips", typeShuvit: "shuvits",
-        typeManual: "manuals", typeKickflip: "kickflips", typeHeelflip: "heelflips",
-        dailyKickflip: "Do {target} kickflips", dailyHeelflip: "Do {target} heelflips",
-        dailyGrind: "Start {target} grinds (Q)", dailyShuvit: "Do {target} shuvits",
-        dailyTricks: "Land {target} tricks", controlsHint: "WASD move · Space push · Shift+W ollie · Q grind · Scroll shuvit · Mouse tricks"
-    },
-    nl: {
-        loading: "Laden...", boardPreview: "3D-preview van je skateboard", loadingError: "Fout bij laden",
-        daily: "Dagelijks", wheels: "Wheels", wheelHint: "V = wisselen",
-        currentSetup: "Huidige setup", skateMenu: "Skatemenu", settings: "Instellingen",
-        closeMenu: "Menu sluiten", menuCloseHint: "T = menu sluiten", menuSections: "Menuonderdelen",
-        missions: "Missies", tasks: "Taken", shop: "Shop", credits: "Credits",
-        dailyMission: "DAGMISSIE", today: "VANDAAG", rush: "RUSH",
-        starCount: "Aantal sterren", startRush: "Start rush", noActiveRush: "Geen actieve rush",
-        tasksDescription: "Voltooi tricks en grinds om wheels te verdienen.",
-        shopDescription: "Ontgrendel en equip nieuwe wielsets.", lightMode: "Lichte modus",
-        lightModeDescription: "Verander de belichting en het thema.", language: "Taal",
-        keyboardShortcut: "Sneltoets", on: "Aan", off: "Uit",
-        skateboardModel: "Skateboardmodel", by: "van", via: "via", starAsset: "Ster van",
-        creditsThanks: "Met dank aan",
-        noTasks: "Geen taken beschikbaar.", equip: "Equip", equipped: "Actief",
-        price: "{amount} wheels", dailyDone: "Voltooid",
-        noStars: "Geen sterren gevonden. Zorg dat 'objective_collective' in de namen van mapobjecten staat.",
-        taskDo: "Doe {target} {type}", taskStart: "Start {target} {type}",
-        taskLand: "Land {target} {type}", taskAllround: "Doe {target} tricks van alles",
-        taskCombo: "Doe {target} grinds en {target} flips",
-        taskSpeedrun: "Start {target} grinds snel achter elkaar",
-        taskAir: "Land {target} airtricks",
-        typeGrind: "grinds", typeTricks: "tricks", typeFlips: "flips", typeShuvit: "shuvits",
-        typeManual: "manuals", typeKickflip: "kickflips", typeHeelflip: "heelflips",
-        dailyKickflip: "Doe {target} kickflips", dailyHeelflip: "Doe {target} heelflips",
-        dailyGrind: "Start {target} grinds (Q)", dailyShuvit: "Doe {target} shuvits",
-        dailyTricks: "Land {target} tricks", controlsHint: "WASD bewegen · Spatie push · Shift+W ollie · Q grind · Scroll shuvit · Muis tricks"
-    },
-    es: {
-        loading: "Cargando...", boardPreview: "Vista 3D de tu monopatín", loadingError: "Error al cargar",
-        daily: "Diaria", wheels: "Ruedas", wheelHint: "V = cambiar",
-        currentSetup: "Configuración actual", skateMenu: "Menú de skate", settings: "Ajustes",
-        closeMenu: "Cerrar menú", menuCloseHint: "T = cerrar menú", menuSections: "Secciones del menú",
-        missions: "Misiones", tasks: "Tareas", shop: "Tienda", credits: "Créditos",
-        dailyMission: "MISIÓN DIARIA", today: "HOY", rush: "RUSH",
-        starCount: "Estrellas para recoger", startRush: "Iniciar Rush", noActiveRush: "No hay un Rush activo",
-        tasksDescription: "Completa trucos y grinds para ganar ruedas.",
-        shopDescription: "Desbloquea y equipa nuevos juegos de ruedas.", lightMode: "Modo claro",
-        lightModeDescription: "Cambia la iluminación y el tema de la interfaz.", language: "Idioma",
-        keyboardShortcut: "Atajo de teclado", on: "Activado", off: "Desactivado",
-        skateboardModel: "Modelo de monopatín", by: "de", via: "vía", starAsset: "Estrella de",
-        creditsThanks: "Gracias a",
-        noTasks: "No hay tareas disponibles.", equip: "Equipar", equipped: "Equipadas",
-        price: "{amount} ruedas", dailyDone: "Completada",
-        noStars: "No se encontraron estrellas. Asegúrate de que los objetos del mapa incluyan 'objective_collective' en su nombre.",
-        taskDo: "Haz {target} {type}", taskStart: "Inicia {target} {type}",
-        taskLand: "Aterriza {target} {type}", taskAllround: "Haz {target} trucos variados",
-        taskCombo: "Haz {target} grinds y {target} flips",
-        taskSpeedrun: "Inicia {target} grinds seguidos",
-        taskAir: "Aterriza {target} trucos aéreos",
-        typeGrind: "grinds", typeTricks: "trucos", typeFlips: "flips", typeShuvit: "shuvits",
-        typeManual: "manuals", typeKickflip: "kickflips", typeHeelflip: "heelflips",
-        dailyKickflip: "Haz {target} kickflips", dailyHeelflip: "Haz {target} heelflips",
-        dailyGrind: "Inicia {target} grinds (Q)", dailyShuvit: "Haz {target} shuvits",
-        dailyTricks: "Aterriza {target} trucos", controlsHint: "WASD moverse · Espacio impulsarse · Shift+W ollie · Q grind · Rueda shuvit · Ratón trucos"
-    },
-    de: {
-        loading: "Laden...", boardPreview: "3D-Vorschau deines Skateboards", loadingError: "Ladefehler",
-        daily: "Täglich", wheels: "Räder", wheelHint: "V = wechseln",
-        currentSetup: "Aktuelles Setup", skateMenu: "Skate-Menü", settings: "Einstellungen",
-        closeMenu: "Menü schließen", menuCloseHint: "T = Menü schließen", menuSections: "Menübereiche",
-        missions: "Missionen", tasks: "Aufgaben", shop: "Shop", credits: "Credits",
-        dailyMission: "TAGESMISSION", today: "HEUTE", rush: "RUSH",
-        starCount: "Sterne sammeln", startRush: "Rush starten", noActiveRush: "Kein Rush aktiv",
-        tasksDescription: "Schließe Tricks und Grinds ab, um Räder zu verdienen.",
-        shopDescription: "Schalte neue Radsätze frei und rüste sie aus.", lightMode: "Heller Modus",
-        lightModeDescription: "Ändere Beleuchtung und Oberflächendesign.", language: "Sprache",
-        keyboardShortcut: "Tastenkürzel", on: "An", off: "Aus",
-        skateboardModel: "Skateboard-Modell", by: "von", via: "über", starAsset: "Stern von",
-        creditsThanks: "Vielen Dank an",
-        noTasks: "Keine Aufgaben verfügbar.", equip: "Ausrüsten", equipped: "Ausgerüstet",
-        price: "{amount} Räder", dailyDone: "Abgeschlossen",
-        noStars: "Keine Sterne gefunden. Der Name von Kartenobjekten muss 'objective_collective' enthalten.",
-        taskDo: "Mache {target} {type}", taskStart: "Starte {target} {type}",
-        taskLand: "Lande {target} {type}", taskAllround: "Mache {target} verschiedene Tricks",
-        taskCombo: "Mache {target} Grinds und {target} Flips",
-        taskSpeedrun: "Starte {target} Grinds hintereinander",
-        taskAir: "Lande {target} Lufttricks",
-        typeGrind: "Grinds", typeTricks: "Tricks", typeFlips: "Flips", typeShuvit: "Shuvits",
-        typeManual: "Manuals", typeKickflip: "Kickflips", typeHeelflip: "Heelflips",
-        dailyKickflip: "Mache {target} Kickflips", dailyHeelflip: "Mache {target} Heelflips",
-        dailyGrind: "Starte {target} Grinds (Q)", dailyShuvit: "Mache {target} Shuvits",
-        dailyTricks: "Lande {target} Tricks", controlsHint: "WASD bewegen · Leertaste anschieben · Shift+W Ollie · Q Grind · Scrollrad Shuvit · Maus Tricks"
-    },
-    fr: {
-        loading: "Chargement...", boardPreview: "Aperçu 3D de ton skateboard", loadingError: "Erreur de chargement",
-        daily: "Quotidien", wheels: "Roues", wheelHint: "V = changer",
-        currentSetup: "Configuration actuelle", skateMenu: "Menu skate", settings: "Paramètres",
-        closeMenu: "Fermer le menu", menuCloseHint: "T = fermer le menu", menuSections: "Sections du menu",
-        missions: "Missions", tasks: "Tâches", shop: "Boutique", credits: "Crédits",
-        dailyMission: "MISSION DU JOUR", today: "AUJOURD'HUI", rush: "RUSH",
-        starCount: "Étoiles à collecter", startRush: "Démarrer le Rush", noActiveRush: "Aucun Rush actif",
-        tasksDescription: "Réussis des figures et des grinds pour gagner des roues.",
-        shopDescription: "Débloque et équipe de nouveaux jeux de roues.", lightMode: "Mode clair",
-        lightModeDescription: "Modifie l'éclairage et le thème de l'interface.", language: "Langue",
-        keyboardShortcut: "Raccourci clavier", on: "Activé", off: "Désactivé",
-        skateboardModel: "Modèle de skateboard", by: "par", via: "via", starAsset: "Étoile par",
-        creditsThanks: "Merci à",
-        noTasks: "Aucune tâche disponible.", equip: "Équiper", equipped: "Équipées",
-        price: "{amount} roues", dailyDone: "Terminé",
-        noStars: "Aucune étoile trouvée. Le nom des objets de la carte doit contenir 'objective_collective'.",
-        taskDo: "Fais {target} {type}", taskStart: "Commence {target} {type}",
-        taskLand: "Réussis {target} {type}", taskAllround: "Fais {target} figures variées",
-        taskCombo: "Fais {target} grinds et {target} flips",
-        taskSpeedrun: "Commence {target} grinds à la suite",
-        taskAir: "Réussis {target} figures aériennes",
-        typeGrind: "grinds", typeTricks: "figures", typeFlips: "flips", typeShuvit: "shuvits",
-        typeManual: "manuals", typeKickflip: "kickflips", typeHeelflip: "heelflips",
-        dailyKickflip: "Fais {target} kickflips", dailyHeelflip: "Fais {target} heelflips",
-        dailyGrind: "Commence {target} grinds (Q)", dailyShuvit: "Fais {target} shuvits",
-        dailyTricks: "Réussis {target} figures", controlsHint: "WASD se déplacer · Espace pousser · Shift+W ollie · Q grind · Molette shuvit · Souris figures"
+let LANGUAGE_STRINGS = {};
+
+async function loadGameSettings() {
+    const response = await fetch("settings.json");
+    if (!response.ok) {
+        throw new Error(`settings.json kon niet worden geladen (HTTP ${response.status}).`);
     }
-};
+
+    const settings = await response.json();
+    if (settings.version !== 1 || !settings.gameplay || !Array.isArray(settings.tasks) ||
+        !Array.isArray(settings.languages) || !settings.translations ||
+        !settings.controls?.keyBindings || !settings.assets) {
+        throw new Error("settings.json heeft een ongeldig formaat.");
+    }
+    GAME_SETTINGS = settings;
+
+    const { physics, movement, camera, tricks, rush, tasks, dailyChallenges, board, wheels } = settings.gameplay;
+    if (![physics, movement, camera, tricks, rush, tasks, dailyChallenges, board].every(value =>
+        value && typeof value === "object" && !Array.isArray(value)) ||
+        !Array.isArray(wheels) || wheels.length === 0) {
+        throw new Error("settings.json mist geldige gameplay-instellingen.");
+    }
+
+    PHYSICS_BOX_WIDTH = physics.boxWidth;
+    PHYSICS_BOX_HEIGHT = physics.boxHeight;
+    PHYSICS_BOX_DEPTH = physics.boxDepth;
+    SHOW_PHYSICS_OUTLINE = physics.showOutline;
+    pushpower = movement.pushPower;
+    PUSH_DELAY = movement.pushDelayMs;
+    maxSpeed = movement.maxSpeed;
+    coastDeceleration = movement.coastDeceleration;
+    brakeDeceleration = movement.brakeDeceleration;
+    SlowDownPower = coastDeceleration;
+    turnSpeed = movement.turnSpeed;
+    jumpPower = movement.jumpImpulse;
+    OLLIE_DURATION = movement.ollieDurationSeconds;
+    cameraYaw = camera.initialYaw;
+    cameraPitch = camera.initialPitch;
+    MOUSE_PITCH_SENSITIVITY = tricks.mousePitchSensitivity;
+    CAMERA_MOUSE_SENSITIVITY = camera.mouseSensitivity;
+    FLIP_MOUSE_THRESHOLD = tricks.flipMouseThreshold;
+    ADVANCED_FLIP_MULTIPLIER = tricks.advancedFlipMultiplier;
+    VARIAL_FLIP_MULTIPLIER = tricks.varialFlipMultiplier;
+    FLIP_DURATION = tricks.flipDurationSeconds;
+    SHUVIT_DURATION = tricks.shuvitDurationSeconds;
+    DOUBLE_SHUVIT_WINDOW_MS = tricks.doubleShuvitWindowMs;
+    LARGE_SHUVIT_DELTA = tricks.largeShuvitDelta;
+    MANUAL_DURATION = tricks.manualDurationSeconds;
+    MANUAL_FLICK_THRESHOLD = tricks.manualFlickThreshold;
+    MANUAL_PITCH_SPEED = tricks.manualPitchSpeed;
+    GRIND_HEIGHT_OFFSET = tricks.grindHeightOffset;
+    GRIND_CYLINDER_DIAMETER = tricks.grindDetectionDiameter;
+    GRIND_CYLINDER_HEIGHT = tricks.grindDetectionHeight;
+    BOARD_LINE_LENGTH = tricks.boardLineLength;
+    BOARD_LINE_OFFSET_Y = tricks.boardLineOffsetY;
+    RUSH_TIME = rush.durationSeconds;
+    MAP_SCALE = board.mapScale;
+    PREVIEW_SCALE = board.previewScale;
+    PREVIEW_CAMERA_RADIUS = board.previewCameraRadius;
+    PREVIEW_MIN_RADIUS = board.previewMinRadius;
+    PREVIEW_MAX_RADIUS = board.previewMaxRadius;
+    IDLE_MOTION_SCALE = board.idleMotionScale;
+    AVAILABLE_WHEELS = wheels.map(wheel => wheel.id);
+    LANGUAGE_OPTIONS = settings.languages.map(language => language.code);
+    LANGUAGE_STRINGS = settings.translations;
+
+    if (!AVAILABLE_WHEELS.every(name => typeof name === "string") ||
+        !LANGUAGE_OPTIONS.every(code => LANGUAGE_STRINGS[code])) {
+        throw new Error("settings.json bevat ongeldige wiel- of taalinstellingen.");
+    }
+    if (new Set(AVAILABLE_WHEELS).size !== AVAILABLE_WHEELS.length ||
+        wheels.some(wheel => !wheel || typeof wheel.id !== "string" ||
+            !Number.isFinite(wheel.price) || wheel.price < 0)) {
+        throw new Error("settings.json bevat ongeldige wielprijzen.");
+    }
+    if (!Object.values(settings.controls.keyBindings).every(binding =>
+        Array.isArray(binding) && binding.every(key => typeof key === "string" && key.length > 0))) {
+        throw new Error("settings.json bevat ongeldige toetsenbordinstellingen.");
+    }
+    if (!settings.controls.mouse || !["shuvit", "tricks"].every(action =>
+        settings.controls.mouse[action] &&
+        LANGUAGE_OPTIONS.every(code => typeof settings.controls.mouse[action][code] === "string"))) {
+        throw new Error("settings.json bevat ongeldige muisbesturingsteksten.");
+    }
+    if (!AVAILABLE_WHEELS.includes(currentWheel)) currentWheel = AVAILABLE_WHEELS[0];
+    ownedWheels = ownedWheels.filter(wheel => AVAILABLE_WHEELS.includes(wheel));
+    if (!ownedWheels.includes(AVAILABLE_WHEELS[0])) ownedWheels.unshift(AVAILABLE_WHEELS[0]);
+    if (!LANGUAGE_OPTIONS.includes(currentLanguage)) currentLanguage = settings.defaultLanguage || "en";
+    if (!LANGUAGE_OPTIONS.includes(currentLanguage)) currentLanguage = LANGUAGE_OPTIONS[0];
+
+    const languageSelect = document.getElementById("languageSelect");
+    if (languageSelect) {
+        languageSelect.replaceChildren(...settings.languages.map(language => {
+            const option = document.createElement("option");
+            option.value = language.code;
+            option.textContent = language.name;
+            return option;
+        }));
+    }
+    const rushSlider = document.getElementById("rushSlider");
+    if (rushSlider) {
+        rushSlider.min = String(rush.minTarget);
+        rushSlider.max = String(rush.maxTarget);
+        rushSlider.value = String(rush.defaultTarget);
+    }
+    const rushCountLabel = document.getElementById("rushCountLabel");
+    if (rushCountLabel && rushSlider) rushCountLabel.textContent = rushSlider.value;
+}
 
 function translate(key, values = {}) {
-    const language = LANGUAGE_STRINGS[currentLanguage] || LANGUAGE_STRINGS.en;
-    const template = language[key] || LANGUAGE_STRINGS.en[key] || key;
+    const fallbackLanguage = LANGUAGE_STRINGS.en || {};
+    const language = LANGUAGE_STRINGS[currentLanguage] || fallbackLanguage;
+    const template = language[key] || fallbackLanguage[key] || key;
     return template.replace(/\{(\w+)\}/g, (_, name) => values[name] ?? "");
+}
+
+function controlPressed(action, inputMap) {
+    const binding = GAME_SETTINGS?.controls?.keyBindings?.[action] || [];
+    return binding.some(key => inputMap[key]);
+}
+
+function getFlipTrick(deltaX, deltaY) {
+    const horizontal = Math.abs(deltaX);
+    const vertical = Math.abs(deltaY);
+    const timeSinceShuvit = performance.now() - lastShuvitTime;
+    if (timeSinceShuvit >= 0 && timeSinceShuvit <= DOUBLE_SHUVIT_WINDOW_MS &&
+        horizontal >= FLIP_MOUSE_THRESHOLD) {
+        return "bigspin";
+    }
+    if (horizontal >= FLIP_MOUSE_THRESHOLD * ADVANCED_FLIP_MULTIPLIER) {
+        return deltaY < 0 ? "laserflip" : "360flip";
+    }
+    if (horizontal >= FLIP_MOUSE_THRESHOLD * VARIAL_FLIP_MULTIPLIER) {
+        return "varialflip";
+    }
+    if (horizontal >= FLIP_MOUSE_THRESHOLD * 0.75 && vertical >= FLIP_MOUSE_THRESHOLD) {
+        return deltaX * deltaY >= 0 ? "hardflip" : "inwardheel";
+    }
+    if (horizontal < FLIP_MOUSE_THRESHOLD * 0.75 && vertical >= FLIP_MOUSE_THRESHOLD) {
+        return "pressureflip";
+    }
+    return deltaX > 0 ? "kickflip" : "heelflip";
+}
+
+function keyMatches(action, key) {
+    const binding = GAME_SETTINGS?.controls?.keyBindings?.[action] || [];
+    return binding.includes(key);
+}
+
+function getBindingLabel(action) {
+    const binding = GAME_SETTINGS.controls.keyBindings[action] || [];
+    return binding.map(key => {
+        if (key === " ") return "Space";
+        if (key === "arrowup") return "↑";
+        if (key === "arrowdown") return "↓";
+        if (key === "arrowleft") return "←";
+        if (key === "arrowright") return "→";
+        return key.toUpperCase();
+    }).join(" + ");
 }
 
 function getTaskLabel(task) {
@@ -268,15 +339,13 @@ function getTaskLabel(task) {
     if (task.id === "grind_flip") return translate("taskCombo", { target: task.target });
     if (task.id && task.id.startsWith("allround")) return translate("taskAllround", { target: task.target });
 
-    const typeKey = {
-        grind: "typeGrind", tricks: "typeTricks", shuvit: "typeShuvit",
-        manual: "typeManual", kickflip: "typeKickflip", heelflip: "typeHeelflip"
-    }[task.type] || "typeTricks";
-    const translatedType = task.type === "tricks" && /\bflips\b/i.test(task.label)
+    const typeKey = `type${task.type.charAt(0).toUpperCase()}${task.type.slice(1)}`;
+    const label = task.label || "";
+    const translatedType = task.type === "tricks" && /\bflips\b/i.test(label)
         ? translate("typeFlips")
         : translate(typeKey);
-    const formatKey = task.label.startsWith("Start ") ? "taskStart"
-        : task.label.startsWith("Land ") ? "taskLand"
+    const formatKey = task.verb === "start" || label.startsWith("Start ") ? "taskStart"
+        : task.verb === "land" || label.startsWith("Land ") ? "taskLand"
             : "taskDo";
     return translate(formatKey, { target: task.target, type: translatedType });
 }
@@ -300,6 +369,7 @@ function playBoardAnim(name, loop = true, reverse = false, returnToIdle = true) 
         currentBoardAnim.onAnimationGroupEndObservable.remove(currentBoardAnimEndObserver);
         currentBoardAnimEndObserver = null;
     }
+    if (currentBoardAnim === activeTrickAnimation) activeTrickAnimation = null;
     boardAnimGroups.forEach(group => {
         if (group !== anim) group.stop();
     });
@@ -309,6 +379,7 @@ function playBoardAnim(name, loop = true, reverse = false, returnToIdle = true) 
         currentBoardAnimEndObserver = anim.onAnimationGroupEndObservable.addOnce(() => {
             if (currentBoardAnim !== anim) return;
             currentBoardAnimEndObserver = null;
+            if (activeTrickAnimation === anim) activeTrickAnimation = null;
             playBoardAnim("idle");
         });
     }
@@ -339,7 +410,7 @@ function makeIdleMotionVisible(animationGroup) {
     }
 
     const centerY = (Math.min(...yValues) + Math.max(...yValues)) / 2;
-    const motionScale = 3;
+    const motionScale = IDLE_MOTION_SCALE;
     torsoTrack.animation.setKeys(keys.map(key => {
         if (!(key.value instanceof BABYLON.Vector3)) return key;
         const value = key.value.clone();
@@ -355,7 +426,7 @@ async function loadWheelSet(name, parentNode, scene) {
     wheelMeshes = [];
 
     try {
-        const result = await BABYLON.SceneLoader.ImportMeshAsync("", "models/wheels/", name + ".glb", scene);
+        const result = await BABYLON.SceneLoader.ImportMeshAsync("", GAME_SETTINGS.assets.wheelDirectory, name + ".glb", scene);
         const root = result.meshes[0];
         root.parent = parentNode;
         root.position.set(0, 0, 0);
@@ -387,7 +458,7 @@ async function loadWheelSet(name, parentNode, scene) {
         });
 
         console.log("Wielen verdeeld over trucks:", name);
-        localStorage.setItem("acidin_wheel", name);
+        writeStoredValue("acidin_wheel", name);
         currentWheel = name;
         updateWheelUI();
         updateTaskUI();
@@ -408,40 +479,53 @@ function cycleWheels(parentNode, scene) {
 }
 
 // ========== TASKS + WHEELS CURRENCY ==========
-let wheelsCurrency = parseInt(localStorage.getItem("acidin_wheels_currency") || "0", 10);
-let ownedWheels = JSON.parse(localStorage.getItem("acidin_owned_wheels") || '["white"]');
-if (!ownedWheels.includes("white")) ownedWheels.unshift("white");
+let wheelsCurrency = Math.max(0, Number.parseInt(readStoredValue("acidin_wheels_currency", "0"), 10) || 0);
+let ownedWheels = readStoredJSON(
+    "acidin_owned_wheels",
+    ["white"],
+    value => Array.isArray(value) && value.every(wheel => typeof wheel === "string")
+);
 
 let ALL_TASKS = [];
 let activeTasks = []; // de 4 taken die je nu ziet
-let taskProgress = JSON.parse(localStorage.getItem("acidin_task_progress") || "{}");
+let taskProgress = readStoredJSON(
+    "acidin_task_progress",
+    {},
+    value => value !== null && typeof value === "object" && !Array.isArray(value) &&
+        Object.values(value).every(progress => Number.isInteger(progress) && progress >= 0)
+);
 
-async function loadTasks() {
-    try {
-        const res = await fetch("tasks.json");
-        ALL_TASKS = await res.json();
-    } catch (e) {
-        console.warn("tasks.json niet geladen, fallback");
-        ALL_TASKS = [
-            { id: "grind5", label: "Start 5 grinds", target: 5, reward: 8, type: "grind" },
-            { id: "flip8", label: "Doe 8 flips", target: 8, reward: 10, type: "tricks" }
-        ];
-    }
-    // Start met 4 random taken
-    activeTasks = [];
+function loadTasks() {
+    const validTaskTypes = new Set([
+        "grind", "tricks", "shuvit", "manual", "kickflip", "heelflip",
+        "360flip", "varialflip", "hardflip", "inwardheel", "360shuvit",
+        "bigspin", "ollie", "varialshuvit", "laserflip", "pressureflip"
+    ]);
+    ALL_TASKS = GAME_SETTINGS.tasks.filter(task =>
+        task && typeof task.id === "string" &&
+        Number.isInteger(task.target) && task.target > 0 &&
+        Number.isFinite(task.reward) && task.reward >= 0 &&
+        validTaskTypes.has(task.type)
+    );
+    if (ALL_TASKS.length === 0) throw new Error("settings.json bevat geen geldige taken.");
+    const savedTaskIds = readStoredJSON("acidin_active_tasks", [], Array.isArray);
+    const savedTaskIdSet = new Set(savedTaskIds);
+    activeTasks = ALL_TASKS.filter(task => savedTaskIdSet.has(task.id))
+        .slice(0, GAME_SETTINGS.gameplay.tasks.activeCount);
     refillActiveTasks();
+    saveTasks();
     updateTaskUI();
 }
 
 function refillActiveTasks() {
     const used = new Set(activeTasks.map(t => t.id));
-    while (activeTasks.length < 4 && ALL_TASKS.length > 0) {
+    while (activeTasks.length < GAME_SETTINGS.gameplay.tasks.activeCount && ALL_TASKS.length > 0) {
         const available = ALL_TASKS.filter(t => !used.has(t.id));
         if (available.length === 0) break;
         const pick = available[Math.floor(Math.random() * available.length)];
         activeTasks.push(pick);
         used.add(pick.id);
-        if (!taskProgress[pick.id]) taskProgress[pick.id] = 0;
+        taskProgress[pick.id] = 0;
     }
 }
 
@@ -480,9 +564,10 @@ function playTaskCompleteSound() {
 }
 
 function saveTasks() {
-    localStorage.setItem("acidin_wheels_currency", String(wheelsCurrency));
-    localStorage.setItem("acidin_owned_wheels", JSON.stringify(ownedWheels));
-    localStorage.setItem("acidin_task_progress", JSON.stringify(taskProgress));
+    writeStoredValue("acidin_wheels_currency", String(wheelsCurrency));
+    writeStoredValue("acidin_owned_wheels", JSON.stringify(ownedWheels));
+    writeStoredValue("acidin_task_progress", JSON.stringify(taskProgress));
+    writeStoredValue("acidin_active_tasks", JSON.stringify(activeTasks.map(task => task.id)));
 }
 
 function addTaskProgress(type, amount = 1) {
@@ -490,7 +575,7 @@ function addTaskProgress(type, amount = 1) {
     const completed = [];
 
     activeTasks.forEach(task => {
-        if (task.type !== type && task.type !== "tricks") return;
+        if (task.type !== type) return;
         const current = taskProgress[task.id] || 0;
         if (current >= task.target) return;
         taskProgress[task.id] = Math.min(task.target, current + amount);
@@ -535,26 +620,16 @@ function updateTaskUI() {
 
     const shopList = document.getElementById("shopList");
     if (shopList) {
-        const prices = {
-            white: 0,
-            peach: 25,
-            blue: 30,
-            light_blue: 30,
-            light_green: 30,
-            orange: 35,
-            pink: 35,
-            purple: 40,
-            yellow: 40
-        };
-        shopList.innerHTML = AVAILABLE_WHEELS.map(name => {
+        shopList.innerHTML = GAME_SETTINGS.gameplay.wheels.map(wheel => {
+            const name = wheel.id;
             const owned = ownedWheels.includes(name);
-            const price = prices[name] || 20;
+            const price = wheel.price;
             const equipped = currentWheel === name;
             return `<div class="shop-item">
                 <span>${name.replaceAll("_", " ")}${equipped ? ` (${translate("equipped")})` : ""}</span>
                 ${owned
                     ? `<button class="buy-btn owned" onclick="equipWheel('${name}')">${translate("equip")}</button>`
-                    : `<button class="buy-btn" onclick="buyWheel('${name}', ${price})" ${wheelsCurrency < price ? "disabled" : ""}>${translate("price", { amount: price })}</button>`
+                    : `<button class="buy-btn" onclick="buyWheel('${name}')" ${wheelsCurrency < price ? "disabled" : ""}>${translate("price", { amount: price })}</button>`
                 }
             </div>`;
         }).join("");
@@ -567,7 +642,7 @@ async function updateBoardPreviewWheel(name) {
     previewWheelMeshes.forEach(mesh => mesh.dispose());
     previewWheelMeshes = [];
 
-    const result = await BABYLON.SceneLoader.ImportMeshAsync("", "models/wheels/", name + ".glb", previewScene);
+    const result = await BABYLON.SceneLoader.ImportMeshAsync("", GAME_SETTINGS.assets.wheelDirectory, name + ".glb", previewScene);
     const root = result.meshes[0];
     root.parent = previewBoardRoot;
     root.position.set(0, 0, 0);
@@ -608,22 +683,22 @@ async function initBoardPreview() {
         "boardPreviewCamera",
         -Math.PI / 2,
         1.05,
-        6,
+        PREVIEW_CAMERA_RADIUS,
         BABYLON.Vector3.Zero(),
         scene
     );
-    camera.lowerRadiusLimit = 3;
-    camera.upperRadiusLimit = 12;
+    camera.lowerRadiusLimit = PREVIEW_MIN_RADIUS;
+    camera.upperRadiusLimit = PREVIEW_MAX_RADIUS;
     camera.wheelPrecision = 50;
     camera.panningSensibility = 0;
     camera.attachControl(canvas, true);
 
     const light = new BABYLON.HemisphericLight("boardPreviewLight", new BABYLON.Vector3(0, 1, 0), scene);
-    light.intensity = 1.1;
+    light.intensity = GAME_SETTINGS.gameplay.board.previewLightIntensity;
     const fill = new BABYLON.DirectionalLight("boardPreviewFill", new BABYLON.Vector3(0, -1, 1), scene);
-    fill.intensity = 0.65;
+    fill.intensity = GAME_SETTINGS.gameplay.board.previewFillIntensity;
 
-    const result = await BABYLON.SceneLoader.ImportMeshAsync("", "models/full_boards/", "skateboard.glb", scene);
+    const result = await BABYLON.SceneLoader.ImportMeshAsync("", "", GAME_SETTINGS.assets.board, scene);
     const root = result.meshes[0];
     const modelMeshes = result.meshes.filter(mesh => mesh.getTotalVertices && mesh.getTotalVertices() > 0);
     if (!root || modelMeshes.length === 0) {
@@ -638,9 +713,9 @@ async function initBoardPreview() {
         throw new Error("De afmetingen van het skateboardmodel zijn ongeldig.");
     }
     root.position.subtractInPlace(center);
-    root.scaling.scaleInPlace(3.2 / largestDimension);
+    root.scaling.scaleInPlace(PREVIEW_SCALE / largestDimension);
     root.rotation.y = Math.PI * 0.12;
-    camera.radius = Math.max(3, largestDimension * 1.05);
+    camera.radius = Math.max(PREVIEW_MIN_RADIUS, largestDimension * PREVIEW_CAMERA_RADIUS / PREVIEW_SCALE);
 
     previewScene = scene;
     previewBoardRoot = root;
@@ -651,9 +726,10 @@ async function initBoardPreview() {
     applyLightMode();
 }
 
-window.buyWheel = function (name, price) {
-    if (wheelsCurrency < price || ownedWheels.includes(name)) return;
-    wheelsCurrency -= price;
+window.buyWheel = function (name) {
+    const wheel = GAME_SETTINGS.gameplay.wheels.find(item => item.id === name);
+    if (!wheel || ownedWheels.includes(name) || wheelsCurrency < wheel.price) return;
+    wheelsCurrency -= wheel.price;
     ownedWheels.push(name);
     saveTasks();
     updateTaskUI();
@@ -682,6 +758,7 @@ window.showMenuTab = function (tab) {
 };
 
 function applyLightMode() {
+    const boardSettings = GAME_SETTINGS.gameplay.board;
     document.documentElement.dataset.theme = isLightMode ? "light" : "dark";
     const button = document.getElementById("lightModeToggle");
     if (button) {
@@ -689,29 +766,23 @@ function applyLightMode() {
         button.setAttribute("aria-pressed", String(isLightMode));
     }
     if (gameScene) {
-        gameScene.clearColor = isLightMode
-            ? new BABYLON.Color4(0.78, 0.88, 0.98, 1)
-            : new BABYLON.Color4(0.53, 0.75, 0.98, 1);
+        const color = isLightMode ? boardSettings.gameClearLight : boardSettings.gameClearDark;
+        gameScene.clearColor = new BABYLON.Color4(...color, 1);
     }
     if (gameSkyMaterial) {
-        gameSkyMaterial.diffuseColor = isLightMode
-            ? new BABYLON.Color3(0.68, 0.84, 1)
-            : new BABYLON.Color3(0.45, 0.68, 0.98);
-        gameSkyMaterial.emissiveColor = isLightMode
-            ? new BABYLON.Color3(0.58, 0.77, 1)
-            : new BABYLON.Color3(0.4, 0.62, 0.95);
+        gameSkyMaterial.diffuseColor = new BABYLON.Color3(...(isLightMode ? boardSettings.skyLight : boardSettings.skyDark));
+        gameSkyMaterial.emissiveColor = new BABYLON.Color3(...(isLightMode ? boardSettings.skyEmissiveLight : boardSettings.skyEmissiveDark));
     }
-    if (gameLight) gameLight.intensity = isLightMode ? 1.3 : 0.9;
+    if (gameLight) gameLight.intensity = isLightMode ? boardSettings.lightIntensityLight : boardSettings.lightIntensityDark;
     if (previewScene) {
-        previewScene.clearColor = isLightMode
-            ? new BABYLON.Color4(0.88, 0.92, 0.96, 1)
-            : new BABYLON.Color4(0.06, 0.08, 0.11, 1);
+        const color = isLightMode ? boardSettings.previewClearLight : boardSettings.previewClearDark;
+        previewScene.clearColor = new BABYLON.Color4(...color, 1);
     }
 }
 
 window.toggleLightMode = function () {
     isLightMode = !isLightMode;
-    localStorage.setItem("acidin_light_mode", String(isLightMode));
+    writeStoredValue("acidin_light_mode", String(isLightMode));
     applyLightMode();
 };
 
@@ -729,9 +800,8 @@ function toggleTaskMenu() {
 }
 window.startRushFromUI = function () {
     const slider = document.getElementById("rushSlider");
-    const count = slider ? parseInt(slider.value, 10) : 5;
-    startRush(count);
-    toggleTaskMenu(); // sluit menu zodat je kunt spelen
+    const count = slider ? Number.parseInt(slider.value, 10) : 5;
+    if (startRush(count)) toggleTaskMenu();
 };
 
 // ========== RUSHES / COLLECTIBLES ==========
@@ -740,19 +810,25 @@ let rushObjects = [];
 let rushCollected = 0;
 let rushTarget = 0;
 let rushTimeLeft = 0;
-const RUSH_TIME = 180;
+let RUSH_TIME = 180;
+let MAP_SCALE = 12;
+let PREVIEW_SCALE = 3.2;
+let PREVIEW_CAMERA_RADIUS = 6;
+let PREVIEW_MIN_RADIUS = 3;
+let PREVIEW_MAX_RADIUS = 12;
+let IDLE_MOTION_SCALE = 3;
 let collectiveObjects = []; // global, wordt gevuld bij map load
 
 function startRush(count) {
     console.log("startRush aangeroepen, collectives:", collectiveObjects.length);
     if (rushActive) {
         console.log("Rush is al actief");
-        return;
+        return false;
     }
     if (collectiveObjects.length === 0) {
         console.warn("Geen objective_collective meshes gevonden in de map!");
         alert(translate("noStars"));
-        return;
+        return false;
     }
     const available = [...collectiveObjects];
     // Shuffle
@@ -760,18 +836,24 @@ function startRush(count) {
         const j = Math.floor(Math.random() * (i + 1));
         [available[i], available[j]] = [available[j], available[i]];
     }
-    rushTarget = Math.min(count, available.length);
+    const requestedCount = Number.isFinite(count) ? Math.floor(count) : 5;
+    rushTarget = Math.min(
+        Math.max(GAME_SETTINGS.gameplay.rush.minTarget, requestedCount),
+        available.length
+    );
     rushObjects = available.slice(0, rushTarget);
     rushCollected = 0;
     rushTimeLeft = RUSH_TIME;
     rushActive = true;
 
-    rushObjects.forEach(m => { 
-        m.isVisible = true; 
+    rushObjects.forEach(m => {
+        m.setEnabled(true);
+        m.isVisible = true;
         console.log("Ster positie:", m.name, m.getAbsolutePosition());
     });
     updateRushUI();
     console.log("Rush gestart:", rushTarget, "objecten");
+    return true;
 }
 
 function endRush(success) {
@@ -815,7 +897,7 @@ function checkRushPickup(playerPos) {
         const dist = BABYLON.Vector3.Distance(playerPos, objPos);
 
         // Ruime pickup radius (map is geschaald)
-        if (dist < 12) {
+        if (dist < GAME_SETTINGS.gameplay.rush.pickupRadius) {
             console.log("Ster opgepakt!", obj.name, "afstand:", dist.toFixed(1));
             obj.isVisible = false;
             obj.setEnabled(false);
@@ -831,8 +913,12 @@ function checkRushPickup(playerPos) {
 
 // T opent/sluit het menu altijd (ook bij pointer lock)
 document.addEventListener("keydown", (e) => {
+    if (e.repeat) return;
+    const target = e.target;
+    if (target instanceof HTMLElement &&
+        (target.isContentEditable || target.matches("input, select, textarea"))) return;
     const key = e.key.toLowerCase();
-    if (key === "i") {
+    if (keyMatches("settings", key)) {
         e.preventDefault();
         const settingsWereOpen = taskMenuOpen && activeMenuTab === "settings";
         if (!taskMenuOpen) toggleTaskMenu();
@@ -841,13 +927,13 @@ document.addEventListener("keydown", (e) => {
         } else {
             window.showMenuTab("settings");
         }
-    } else if (key === "t") {
+    } else if (keyMatches("menu", key)) {
         e.preventDefault();
         if (document.pointerLockElement) {
             document.exitPointerLock();
         }
         // kleine delay zodat pointer lock eerst vrij is
-        setTimeout(() => toggleTaskMenu(), 50);
+        toggleTaskMenu();
     }
 });
 let dailyChallenge = null;
@@ -871,33 +957,11 @@ function seededRandom(seed) {
 function generateDailyChallenge() {
     const dateKey = getDateKey();
     const rng = seededRandom(dateKey + '-acidin-v2');
-    const roll = rng();
-
-    const types = [
-        () => {
-            const target = 2 + Math.floor(rng() * 4); // 2-5
-            return { type: 'kickflip', target, label: `Doe ${target} kickflips`, dateKey };
-        },
-        () => {
-            const target = 2 + Math.floor(rng() * 3); // 2-4
-            return { type: 'heelflip', target, label: `Doe ${target} heelflips`, dateKey };
-        },
-        () => {
-            const target = 3 + Math.floor(rng() * 4); // 3-6
-            return { type: 'grind', target, label: `Start ${target} grinds (Q)`, dateKey };
-        },
-        () => {
-            const target = 3 + Math.floor(rng() * 3); // 3-5
-            return { type: 'shuvit', target, label: `Doe ${target} shuvits`, dateKey };
-        },
-        () => {
-            const target = 4 + Math.floor(rng() * 5); // 4-8
-            return { type: 'tricks', target, label: `Land ${target} tricks`, dateKey };
-        }
-    ];
-
-    const index = Math.floor(roll * types.length);
-    return types[index]();
+    const challengeTypes = Object.keys(GAME_SETTINGS.gameplay.dailyChallenges);
+    const type = challengeTypes[Math.floor(rng() * challengeTypes.length)];
+    const [minimum, maximum] = GAME_SETTINGS.gameplay.dailyChallenges[type];
+    const target = minimum + Math.floor(rng() * (maximum - minimum + 1));
+    return { type, target, label: `${type} ${target}`, dateKey };
 }
 
 function loadDailyChallenge() {
@@ -906,13 +970,16 @@ function loadDailyChallenge() {
     dailyProgress = 0;
     dailyCompleted = false;
 
-    try {
-        const saved = localStorage.getItem('acidin_daily_' + dateKey);
-        if (saved === 'done') {
-            dailyCompleted = true;
-            dailyProgress = dailyChallenge.target;
-        }
-    } catch (e) {}
+    const saved = readStoredValue('acidin_daily_' + dateKey);
+    if (saved === 'done') {
+        dailyCompleted = true;
+        dailyProgress = dailyChallenge.target;
+    } else {
+        const progress = Number.parseInt(saved, 10);
+        dailyProgress = Number.isFinite(progress)
+            ? BABYLON.Scalar.Clamp(progress, 0, dailyChallenge.target)
+            : 0;
+    }
 
     updateDailyUI();
 }
@@ -945,19 +1012,16 @@ function updateWheelUI() {
 
 function addDailyProgress(type, amount = 1) {
     if (!dailyChallenge || dailyCompleted) return;
-    if (dailyChallenge.type !== type && dailyChallenge.type !== 'tricks') return;
+    if (dailyChallenge.type !== type) return;
 
-    // tricks telt alles
-    if (dailyChallenge.type === 'tricks' || dailyChallenge.type === type) {
-        dailyProgress = Math.min(dailyChallenge.target, dailyProgress + amount);
-        if (dailyProgress >= dailyChallenge.target) {
-            dailyCompleted = true;
-            try {
-                localStorage.setItem('acidin_daily_' + dailyChallenge.dateKey, 'done');
-            } catch (e) {}
-        }
-        updateDailyUI();
+    dailyProgress = Math.min(dailyChallenge.target, dailyProgress + amount);
+    if (dailyProgress >= dailyChallenge.target) {
+        dailyCompleted = true;
+        writeStoredValue('acidin_daily_' + dailyChallenge.dateKey, 'done');
+    } else {
+        writeStoredValue('acidin_daily_' + dailyChallenge.dateKey, String(dailyProgress));
     }
+    updateDailyUI();
 }
 
 // Debug: nieuwe daily forceren
@@ -965,13 +1029,14 @@ function addDailyProgress(type, amount = 1) {
 // new_daily('kickflip') → specifieke
 window.new_daily = function (forceType) {
     const dateKey = getDateKey();
-    localStorage.removeItem('acidin_daily_' + dateKey);
+    removeStoredValue('acidin_daily_' + dateKey);
 
     if (forceType) {
-        const targets = { kickflip: 3, heelflip: 3, grind: 4, shuvit: 3, tricks: 6 };
+        const range = GAME_SETTINGS.gameplay.dailyChallenges[forceType];
+        if (!range) throw new Error(`Unknown daily challenge type: ${forceType}`);
         dailyChallenge = {
             type: forceType,
-            target: targets[forceType] || 3,
+            target: Math.floor((range[0] + range[1]) / 2),
             label: forceType,
             dateKey
         };
@@ -1000,7 +1065,25 @@ function applyLanguage() {
     const wheelHint = document.getElementById("wheelHint");
     if (wheelHint) wheelHint.textContent = translate("wheelHint");
     const controlsHint = document.querySelector("#controlsHint [data-i18n='controlsHint']");
-    if (controlsHint) controlsHint.textContent = translate("controlsHint");
+    const controlLabels = {
+        movement: [
+            getBindingLabel("forward"),
+            getBindingLabel("backward"),
+            getBindingLabel("left"),
+            getBindingLabel("right")
+        ].filter(Boolean).join("/"),
+        push: getBindingLabel("push"),
+        ollie: getBindingLabel("ollie"),
+        grind: getBindingLabel("grind"),
+        switchWheels: getBindingLabel("switchWheels"),
+        menu: getBindingLabel("menu"),
+        settings: getBindingLabel("settings"),
+        shuvitControl: GAME_SETTINGS.controls.mouse.shuvit[currentLanguage],
+        trickControl: GAME_SETTINGS.controls.mouse.tricks[currentLanguage]
+    };
+    if (controlsHint) controlsHint.textContent = translate("controlsHint", controlLabels);
+    const menuCloseHint = document.querySelector("[data-i18n='menuCloseHint']");
+    if (menuCloseHint) menuCloseHint.textContent = translate("menuCloseHint", controlLabels);
     applyLightMode();
     updateDailyUI();
     updateRushUI();
@@ -1012,39 +1095,38 @@ if (languageSelect) {
     languageSelect.addEventListener("change", () => {
         if (!LANGUAGE_OPTIONS.includes(languageSelect.value)) return;
         currentLanguage = languageSelect.value;
-        localStorage.setItem("acidin_language", currentLanguage);
+        writeStoredValue("acidin_language", currentLanguage);
         applyLanguage();
     });
 }
-applyLanguage();
-
 async function createGame() {
     const scene = new BABYLON.Scene(engine);
     scene.animationsEnabled = true;
-    
+    const { physics, camera: cameraSettings, board: boardSettings } = GAME_SETTINGS.gameplay;
+
     const havokInstance = await HavokPhysics();
     const havokPlugin = new BABYLON.HavokPlugin(true, havokInstance);
-    scene.enablePhysics(new BABYLON.Vector3(0, -26.0, 0), havokPlugin);
-    
-    scene.clearColor = new BABYLON.Color4(0.53, 0.75, 0.98, 1);
+    scene.enablePhysics(new BABYLON.Vector3(0, physics.gravityY, 0), havokPlugin);
+
+    scene.clearColor = new BABYLON.Color4(...boardSettings.gameClearDark, 1);
 
     // 1. CAMERA
     const camera = new BABYLON.ArcRotateCamera(
         "camera",
-        -Math.PI / 2,
+        cameraSettings.initialYaw,
         Math.PI / 3,
-        12,
+        cameraSettings.startingRadius,
         BABYLON.Vector3.Zero(),
         scene
     );
     camera.attachControl(canvas, true);
-    camera.lowerBetaLimit = 0.1;
-    camera.upperBetaLimit = Math.PI / 2 - 0.05;
+    camera.lowerBetaLimit = cameraSettings.minimumBeta;
+    camera.upperBetaLimit = Math.PI / 2 - cameraSettings.maximumBetaOffset;
     camera.inputs.removeByType("ArcRotateCameraKeyboardMoveInput");
     camera.inputs.removeByType("ArcRotateCameraMouseWheelInput");
     camera.inputs.removeByType("ArcRotateCameraPointersInput");
-    camera.fov = 0.85;
-    camera.maxZ = 5000;
+    camera.fov = cameraSettings.fov;
+    camera.maxZ = cameraSettings.maxZ;
 
     // Betrouwbare blauwe lucht
     const sky = BABYLON.MeshBuilder.CreateSphere("sky", { diameter: 1500, segments: 32 }, scene);
@@ -1052,8 +1134,8 @@ async function createGame() {
     gameSkyMaterial = skyMat;
     skyMat.backFaceCulling = false;
     skyMat.disableLighting = true;
-    skyMat.diffuseColor = new BABYLON.Color3(0.45, 0.68, 0.98);
-    skyMat.emissiveColor = new BABYLON.Color3(0.4, 0.62, 0.95);
+    skyMat.diffuseColor = new BABYLON.Color3(...boardSettings.skyDark);
+    skyMat.emissiveColor = new BABYLON.Color3(...boardSettings.skyEmissiveDark);
     skyMat.specularColor = new BABYLON.Color3(0, 0, 0);
     sky.material = skyMat;
     sky.infiniteDistance = true;
@@ -1086,10 +1168,10 @@ async function createGame() {
 
     // --- MAP.GLB ---
     try {
-        const mapResult = await BABYLON.SceneLoader.ImportMeshAsync("", "models/maps/", "map.glb", scene);
+        const mapResult = await BABYLON.SceneLoader.ImportMeshAsync("", "", GAME_SETTINGS.assets.map, scene);
         mapResult.meshes.forEach((mesh) => {
             if (mesh.name === "__root__") {
-                mesh.scaling = new BABYLON.Vector3(12, 12, 12);
+                mesh.scaling.setAll(MAP_SCALE);
                 mesh.position.y -= 100;
             }
         });
@@ -1098,7 +1180,7 @@ async function createGame() {
                 new BABYLON.PhysicsAggregate(
                     mesh,
                     BABYLON.PhysicsShapeType.MESH, 
-                    { mass: 0, friction: 0.5, restitution: 0.1 }, 
+                    { mass: 0, friction: physics.mapFriction, restitution: physics.mapRestitution },
                     scene
                 );
 
@@ -1165,9 +1247,9 @@ async function createGame() {
     camera.lockedTarget = physicsMesh;
 
     // Camera follow
-    const cameraDistance = 42;
-    const cameraSmoothness = 3;
-    const defaultPitch = 0.45;
+    const cameraDistance = cameraSettings.followDistance;
+    const cameraSmoothness = cameraSettings.smoothness;
+    const defaultPitch = cameraSettings.defaultPitch;
     scene.onBeforeRenderObservable.add(() => {
         const dt = engine.getDeltaTime() / 1000;
         const rotation = physicsMesh.rotationQuaternion;
@@ -1181,7 +1263,7 @@ async function createGame() {
         if (isLeftMouseDown && isPointerLocked) {
             cameraYaw += mouseDeltaX * CAMERA_MOUSE_SENSITIVITY;
             cameraPitch -= mouseDeltaY * CAMERA_MOUSE_SENSITIVITY;
-            cameraPitch = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, cameraPitch));
+            cameraPitch = Math.max(cameraSettings.minimumBeta, Math.min(Math.PI / 2 - cameraSettings.maximumBetaOffset, cameraPitch));
         } else {
             let yawDiff = boardYaw - cameraYaw;
             yawDiff = Math.atan2(Math.sin(yawDiff), Math.cos(yawDiff));
@@ -1221,12 +1303,12 @@ async function createGame() {
     const boardPhysics = new BABYLON.PhysicsAggregate(
         physicsMesh, 
         BABYLON.PhysicsShapeType.BOX, 
-        { mass: 15, friction: 0, restitution: 0.05 }, 
+        { mass: physics.mass, friction: physics.friction, restitution: physics.restitution },
         scene
     );
     boardPhysics.body.setMotionType(BABYLON.PhysicsMotionType.DYNAMIC);
-    boardPhysics.body.setLinearDampening = 0.1;
-    boardPhysics.body.setAngularDampening = 0.8;
+    boardPhysics.body.setLinearDamping(physics.linearDamping);
+    boardPhysics.body.setAngularDamping(physics.angularDamping);
 
     if (SHOW_PHYSICS_OUTLINE) {
         const viewer = new BABYLON.PhysicsViewer(scene);
@@ -1237,7 +1319,7 @@ async function createGame() {
     gameScene = scene;
 
     try {
-        const result = await BABYLON.SceneLoader.ImportMeshAsync("", "models/full_boards/", "skateboard.glb", scene);
+        const result = await BABYLON.SceneLoader.ImportMeshAsync("", "", GAME_SETTINGS.assets.board, scene);
         const skateboard = result.meshes[0];
         skateboard.parent = physicsMesh;
         boardParts.root = skateboard;
@@ -1260,6 +1342,8 @@ async function createGame() {
             return n.includes("push");
         });
         ollieAnim = boardAnimGroups.find(a => a.name.toLowerCase().includes("ollie"));
+        kickflipAnim = boardAnimGroups.find(a => a.name.toLowerCase() === "kf");
+        heelflipAnim = boardAnimGroups.find(a => a.name.toLowerCase() === "hf");
         crouchAnim = boardAnimGroups.find(a => a.name.toLowerCase() === "crouch");
         uncrouchAnim = boardAnimGroups.find(a => a.name.toLowerCase() === "uncrouch");
         if (!crouchAnim && uncrouchAnim) {
@@ -1337,14 +1421,14 @@ async function createGame() {
 
     // --- INPUT MANAGEMENT ---
     const inputMap = {};
+    let canOllie = false;
     scene.onKeyboardObservable.add((kbInfo) => {
         const key = kbInfo.event.key.toLowerCase();
         if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYDOWN) {
             const wasAlreadyDown = inputMap[key] === true;
             inputMap[key] = true;
-let lastPushAnimTime = 0;
 
-            if (key === "shift" && !wasAlreadyDown) {
+            if (keyMatches("crouch", key) && !wasAlreadyDown) {
                 if (crouchAnim) {
                     playBoardAnim("crouch", false, false, false);
                 } else if (uncrouchAnim) {
@@ -1354,7 +1438,7 @@ let lastPushAnimTime = 0;
                 }
             }
 
-            if (key === " " || key === "spacebar") {
+            if (keyMatches("push", key)) {
                 const now = performance.now();
                 if (now - lastPushTime < PUSH_DELAY) return; // delay
                 lastPushTime = now;
@@ -1364,13 +1448,13 @@ let lastPushAnimTime = 0;
 
                 if (pushAnim && speed > oldSpeed) playBoardAnim("push", false);
             }
-            if (key === "v") {
+            if (keyMatches("switchWheels", key)) {
                 // Wissel wiel-set
                 if (boardParts.root) {
                     cycleWheels(boardParts.root, scene);
                 }
             }
-            if (key === "q" && !isGrinding) {
+            if (keyMatches("grind", key) && !isGrinding) {
                 console.log("Q ingedrukt - check grindCylinder vs grindable_line");
                 let hitLine = null;
                 for (const line of grindableLines) {
@@ -1416,7 +1500,9 @@ let lastPushAnimTime = 0;
                     console.log("Geen grindable_line geraakt door de cylinder.");
                 }
             }
-            if (key === "w" && inputMap["shift"]) {
+            if (keyMatches("ollie", key) && controlPressed("ollie", inputMap) &&
+                canOllie && ollieTimer <= 0) {
+                canOllie = false;
                 if (isGrinding) {
                     isGrinding = false;
                     currentGrindMesh = null;
@@ -1427,18 +1513,24 @@ let lastPushAnimTime = 0;
                 if (ollieTimer <= 0) {
                     ollieTimer = OLLIE_DURATION;
                     if (ollieAnim) playBoardAnim("ollie", false);
+                    addTaskProgress("ollie");
+                    addTaskProgress("tricks");
+                    addDailyProgress("tricks");
                 }
             }
         } else if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYUP) {
             const wasAlreadyDown = inputMap[key] === true;
             inputMap[key] = false;
-            if (key === "shift" && wasAlreadyDown && uncrouchAnim) {
+            if (keyMatches("crouch", key) && wasAlreadyDown && uncrouchAnim) {
                 playBoardAnim("uncrouch", false);
             }
-            if (key === " " || key === "spacebar") {
-                inputMap["spacebar"] = false;
-            }
         }
+    });
+    window.addEventListener("blur", () => {
+        Object.keys(inputMap).forEach(key => { inputMap[key] = false; });
+        isLeftMouseDown = false;
+        mouseDeltaX = 0;
+        mouseDeltaY = 0;
     });
 
     // --- MUIS / POINTER LOCK / WHEEL ---
@@ -1469,13 +1561,19 @@ let lastPushAnimTime = 0;
 
     canvas.addEventListener("wheel", (e) => {
         e.preventDefault();
-        if (!isPointerLocked || isShuviting) return;
+        if (!isPointerLocked) return;
+        const now = performance.now();
+        const isDoubleScroll = now - lastShuvitTime <= DOUBLE_SHUVIT_WINDOW_MS;
+        const shuvitType = Math.abs(e.deltaY) >= LARGE_SHUVIT_DELTA
+            ? "360shuvit"
+            : isDoubleScroll ? "varialshuvit" : "shuvit";
+        lastShuvitTime = now;
         shuvitDir = e.deltaY < 0 ? 1 : -1;
+        activeShuvitTurns = shuvitType === "360shuvit" ? 2 : 1;
         isShuviting = true;
         shuvitProgress = 0;
-        addDailyProgress('shuvit');
-        addDailyProgress('tricks');
-        addTaskProgress('shuvit');
+        addDailyProgress(shuvitType === "shuvit" ? "shuvit" : "tricks");
+        addTaskProgress(shuvitType);
         addTaskProgress('tricks');
     }, { passive: false });
 
@@ -1590,6 +1688,9 @@ let lastPushAnimTime = 0;
         const groundRay = new BABYLON.Ray(groundRayOrigin, BABYLON.Vector3.Down(), 0.8);
         const groundHit = scene.pickWithRay(groundRay, (m) => m !== physicsMesh && m !== grindCylinder && m !== boardLine);
         isGrounded = !!(groundHit && groundHit.hit);
+        if (isGrounded && Math.abs(currentVelocity.y) < 1 && ollieTimer <= 0) {
+            canOllie = true;
+        }
 
         let angularVel = new BABYLON.Vector3(0, 0, 0);
 
@@ -1601,25 +1702,25 @@ let lastPushAnimTime = 0;
                 isVertical = Math.abs(boardUp.y) < 0.4;
             }
 
-            if (inputMap["a"] || inputMap["arrowleft"]) {
+            if (controlPressed("left", inputMap)) {
                 if (isVertical && rotQuat) {
                     const localY = BABYLON.Vector3.Up().rotateByQuaternionToRef(rotQuat, new BABYLON.Vector3());
                     angularVel = localY.scale(-turnSpeed * 4.5);
                 } else {
                     angularVel.y = -turnSpeed;
                 }
-            } else if (inputMap["d"] || inputMap["arrowright"]) {
+            } else if (controlPressed("right", inputMap)) {
                 if (isVertical && rotQuat) {
                     const localY = BABYLON.Vector3.Up().rotateByQuaternionToRef(rotQuat, new BABYLON.Vector3());
                     angularVel = localY.scale(turnSpeed * 4.5);
                 } else {
                     angularVel.y = turnSpeed;
                 }
-            } else if (inputMap["s"] || inputMap["arrowdown"]) {
-                SlowDownPower = 0.8;
+            } else if (controlPressed("backward", inputMap)) {
+                SlowDownPower = brakeDeceleration;
             } else {
                 angularVel.y = 0;
-                SlowDownPower = 0.05;
+                SlowDownPower = coastDeceleration;
             }
 
             // Muis: pitch alleen in de lucht, manuals ook op de grond
@@ -1632,24 +1733,37 @@ let lastPushAnimTime = 0;
                         angularVel.addInPlace(worldPitchAxis.scale(pitchAmount));
                     }
 
-                    // Manual mag op de grond én in de lucht
-                    if (!isManualing && Math.abs(mouseDeltaY) > MANUAL_FLICK_THRESHOLD) {
+                    if (isGrounded && !isManualing && Math.abs(mouseDeltaY) > MANUAL_FLICK_THRESHOLD) {
                         isManualing = true;
                         manualDir = mouseDeltaY < 0 ? 1 : -1;
                         manualProgress = 0;
                         addTaskProgress('manual');
+                        addTaskProgress('tricks');
+                        addDailyProgress('tricks');
                     }
 
-                    // Flips alleen in de lucht
-                    if (!isFlipping && Math.abs(mouseDeltaX) > FLIP_MOUSE_THRESHOLD && !isGrounded) {
+                    if (!isFlipping && !isGrounded &&
+                        (Math.abs(mouseDeltaX) > FLIP_MOUSE_THRESHOLD ||
+                            Math.abs(mouseDeltaY) > MANUAL_FLICK_THRESHOLD)) {
                         isFlipping = true;
                         flipDir = mouseDeltaX > 0 ? 1 : -1;
                         flipProgress = 0;
-                        // +1 = kickflip, -1 = heelflip (pas aan als de richting anders is)
-                        const flipType = flipDir > 0 ? 'kickflip' : 'heelflip';
-                        addDailyProgress(flipType);
+                        activeFlipType = getFlipTrick(mouseDeltaX, mouseDeltaY);
+                        activeFlipYawTurns = {
+                            varialflip: 0.5,
+                            "360flip": 1,
+                            laserflip: 1,
+                            bigspin: 1
+                        }[activeFlipType] || 0;
+                        const trickAnimation = activeFlipType === "kickflip" ? kickflipAnim
+                            : activeFlipType === "heelflip" ? heelflipAnim
+                                : null;
+                        if (trickAnimation && playBoardAnim(trickAnimation.name, false)) {
+                            activeTrickAnimation = trickAnimation;
+                        }
+                        addDailyProgress(activeFlipType);
                         addDailyProgress('tricks');
-                        addTaskProgress(flipType);
+                        addTaskProgress(activeFlipType);
                         addTaskProgress('tricks');
                     }
                 }
@@ -1700,7 +1814,7 @@ let lastPushAnimTime = 0;
                     currentVelocity.x = targetForwardVel.x;
                     currentVelocity.z = targetForwardVel.z;
                     boardPhysics.body.setLinearVelocity(currentVelocity);
-                    speed -= SlowDownPower;
+                    speed = Math.max(0, speed - SlowDownPower * dt * 60);
                 } else {
                     speed = 0;
                     boardPhysics.body.setLinearVelocity(new BABYLON.Vector3(
@@ -1719,9 +1833,9 @@ let lastPushAnimTime = 0;
             shuvitProgress += dt / SHUVIT_DURATION;
             if (shuvitProgress >= 1) {
                 isShuviting = false;
-                boardParts.root.rotation.y = shuvitDir * Math.PI;
+                boardParts.root.rotation.y = 0;
             } else {
-                boardParts.root.rotation.y = shuvitDir * shuvitProgress * Math.PI;
+                boardParts.root.rotation.y = shuvitDir * shuvitProgress * Math.PI * activeShuvitTurns;
             }
         }
 
@@ -1747,10 +1861,16 @@ let lastPushAnimTime = 0;
                     isFlipping = false;
                     flipProgress = 0;
                     boardParts.deck.rotation.z = 0;
-                } else {
+                    boardParts.root.rotation.y = 0;
+                    activeFlipYawTurns = 0;
+                } else if (!activeTrickAnimation) {
                     boardParts.deck.rotation.z = flipDir * flipProgress * Math.PI * 2;
+                    boardParts.root.rotation.y = flipDir * flipProgress * Math.PI * 2 * activeFlipYawTurns;
+                    if (activeFlipType === "hardflip" || activeFlipType === "inwardheel") {
+                        boardParts.deck.rotation.x = Math.sin(flipProgress * Math.PI) * Math.PI * 0.35;
+                    }
                 }
-            } else {
+            } else if (!activeTrickAnimation) {
                 boardParts.deck.rotation.z = 0;
             }
         }
@@ -1769,7 +1889,10 @@ let lastPushAnimTime = 0;
     return scene;
 }
 
-createGame().then((scene) => {
+loadGameSettings().then(() => {
+    applyLanguage();
+    return createGame();
+}).then((scene) => {
     console.log("Game geladen, laadscherm verbergen");
     hideLoadingScreen();
     loadDailyChallenge();
@@ -1783,16 +1906,7 @@ createGame().then((scene) => {
     engine.runRenderLoop(() => { scene.render(); });
 }).catch((error) => {
     console.error("Failed to initialize game:", error);
-    hideLoadingScreen();
-    const el = document.getElementById("loadingScreen");
-    if (el) {
-        el.classList.remove("hidden");
-        el.innerHTML = `
-            <div style="text-align:center;color:#f87171;font-family:system-ui;">
-                <h2>${translate("loadingError")}</h2>
-                <p>${error.message || error}</p>
-            </div>`;
-    }
+    showLoadingError(error);
 });
 
 window.addEventListener("resize", () => { engine.resize(); });
