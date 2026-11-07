@@ -97,8 +97,6 @@ let OLLIE_DURATION = 0.4;
 let MOUSE_PITCH_SENSITIVITY = 0.04;
 let CAMERA_MOUSE_SENSITIVITY = 0.005;
 let FLIP_MOUSE_THRESHOLD = 38;
-let ADVANCED_FLIP_MULTIPLIER = 2.4;
-let VARIAL_FLIP_MULTIPLIER = 1.5;
 let FLIP_DURATION = 0.45;
 let mouseDeltaX = 0;
 let mouseDeltaY = 0;
@@ -112,7 +110,6 @@ let isFlipping = false;
 let flipDir = 0;
 let flipProgress = 0;
 let activeFlipType = "kickflip";
-let activeFlipYawTurns = 0;
 
 // Shuvit state (alleen visueel)
 let isShuviting = false;
@@ -120,9 +117,19 @@ let shuvitDir = 0;
 let shuvitProgress = 0;
 let activeShuvitTurns = 1;
 let SHUVIT_DURATION = 0.32;
-let DOUBLE_SHUVIT_WINDOW_MS = 300;
-let LARGE_SHUVIT_DELTA = 180;
-let lastShuvitTime = Number.NEGATIVE_INFINITY;
+let playerIsGrounded = false;
+let trickInputBuffer = [];
+let pendingScoredTricks = [];
+let pendingBaseTricks = [];
+let bankedScore = 0;
+let comboMultiplier = 1;
+let lastTrickMessage = "";
+let specialTrickTime = 0;
+let specialTrickDuration = 1;
+let trickComboWindowMs = 350;
+let shuvit360Delta = 180;
+let trickSystemSettings = null;
+let baseTrickPoints = {};
 
 // Manual state
 let isManualing = false;
@@ -152,9 +159,6 @@ let boardAnimGroups = [];
 let idleAnim = null;
 let pushAnim = null;
 let ollieAnim = null;
-let kickflipAnim = null;
-let heelflipAnim = null;
-let activeTrickAnimation = null;
 let crouchAnim = null;
 let uncrouchAnim = null;
 let currentBoardAnim = null;
@@ -173,6 +177,26 @@ let currentLanguage = readStoredValue("acidin_language", "en");
 if (!LANGUAGE_OPTIONS.includes(currentLanguage)) currentLanguage = "en";
 
 let LANGUAGE_STRINGS = {};
+
+function getBindingAlternatives(binding) {
+    if (Array.isArray(binding)) return binding.map(key => [key]);
+    if (typeof binding !== "string") return [];
+    return binding.split("||").map(alternative =>
+        alternative.split("&&").map(key => key.trim().toLowerCase())
+    );
+}
+
+function isValidKeyBinding(binding) {
+    if (Array.isArray(binding)) {
+        return binding.length > 0 &&
+            binding.every(key => typeof key === "string" && key.length > 0 && !/[&|]/.test(key));
+    }
+    if (typeof binding !== "string") return false;
+    const alternatives = getBindingAlternatives(binding);
+    return alternatives.length > 0 &&
+        alternatives.every(keys => keys.length > 0 &&
+            keys.every(key => key.length > 0 && !/[&|]/.test(key)));
+}
 
 async function loadGameSettings() {
     const response = await fetch("settings.json");
@@ -194,6 +218,28 @@ async function loadGameSettings() {
         !Array.isArray(wheels) || wheels.length === 0) {
         throw new Error("settings.json mist geldige gameplay-instellingen.");
     }
+    trickSystemSettings = settings.gameplay.trickSystem;
+    if (!trickSystemSettings || !Number.isInteger(trickSystemSettings.comboWindowMs) ||
+        trickSystemSettings.comboWindowMs <= 0 ||
+        !Number.isFinite(trickSystemSettings.shuvit360Delta) ||
+        trickSystemSettings.shuvit360Delta <= 0 ||
+        !trickSystemSettings.basePoints || !Array.isArray(trickSystemSettings.combos) ||
+        !trickSystemSettings.specialTrick) {
+        throw new Error("settings.json mist geldige trick-combo- of score-instellingen.");
+    }
+    const trickPatterns = [...trickSystemSettings.combos, trickSystemSettings.specialTrick];
+    if (Object.values(trickSystemSettings.basePoints).some(points =>
+        !Number.isFinite(points) || points <= 0) ||
+        trickPatterns.some(pattern => !pattern || typeof pattern.name !== "string" ||
+            typeof pattern.labelKey !== "string" || !Array.isArray(pattern.sequence) ||
+            pattern.sequence.length < 2 || !Number.isFinite(pattern.points) || pattern.points <= 0 ||
+            pattern.sequence.some(key => typeof key !== "string" ||
+                !Number.isFinite(trickSystemSettings.basePoints[key])))) {
+        throw new Error("settings.json bevat ongeldige trick-combo's of scorewaarden.");
+    }
+    trickComboWindowMs = trickSystemSettings.comboWindowMs;
+    shuvit360Delta = trickSystemSettings.shuvit360Delta;
+    baseTrickPoints = trickSystemSettings.basePoints;
 
     PHYSICS_BOX_WIDTH = physics.boxWidth;
     PHYSICS_BOX_HEIGHT = physics.boxHeight;
@@ -213,12 +259,8 @@ async function loadGameSettings() {
     MOUSE_PITCH_SENSITIVITY = tricks.mousePitchSensitivity;
     CAMERA_MOUSE_SENSITIVITY = camera.mouseSensitivity;
     FLIP_MOUSE_THRESHOLD = tricks.flipMouseThreshold;
-    ADVANCED_FLIP_MULTIPLIER = tricks.advancedFlipMultiplier;
-    VARIAL_FLIP_MULTIPLIER = tricks.varialFlipMultiplier;
     FLIP_DURATION = tricks.flipDurationSeconds;
     SHUVIT_DURATION = tricks.shuvitDurationSeconds;
-    DOUBLE_SHUVIT_WINDOW_MS = tricks.doubleShuvitWindowMs;
-    LARGE_SHUVIT_DELTA = tricks.largeShuvitDelta;
     MANUAL_DURATION = tricks.manualDurationSeconds;
     MANUAL_FLICK_THRESHOLD = tricks.manualFlickThreshold;
     MANUAL_PITCH_SPEED = tricks.manualPitchSpeed;
@@ -247,8 +289,7 @@ async function loadGameSettings() {
             !Number.isFinite(wheel.price) || wheel.price < 0)) {
         throw new Error("settings.json bevat ongeldige wielprijzen.");
     }
-    if (!Object.values(settings.controls.keyBindings).every(binding =>
-        Array.isArray(binding) && binding.every(key => typeof key === "string" && key.length > 0))) {
+    if (!Object.values(settings.controls.keyBindings).every(isValidKeyBinding)) {
         throw new Error("settings.json bevat ongeldige toetsenbordinstellingen.");
     }
     if (!settings.controls.mouse || !["shuvit", "tricks"].every(action =>
@@ -289,48 +330,166 @@ function translate(key, values = {}) {
 }
 
 function controlPressed(action, inputMap) {
-    const binding = GAME_SETTINGS?.controls?.keyBindings?.[action] || [];
-    return binding.some(key => inputMap[key]);
+    const alternatives = getBindingAlternatives(GAME_SETTINGS?.controls?.keyBindings?.[action]);
+    return alternatives.some(keys => keys.every(key => inputMap[key]));
 }
 
-function getFlipTrick(deltaX, deltaY) {
-    const horizontal = Math.abs(deltaX);
-    const vertical = Math.abs(deltaY);
-    const timeSinceShuvit = performance.now() - lastShuvitTime;
-    if (timeSinceShuvit >= 0 && timeSinceShuvit <= DOUBLE_SHUVIT_WINDOW_MS &&
-        horizontal >= FLIP_MOUSE_THRESHOLD) {
-        return "bigspin";
-    }
-    if (horizontal >= FLIP_MOUSE_THRESHOLD * ADVANCED_FLIP_MULTIPLIER) {
-        return deltaY < 0 ? "laserflip" : "360flip";
-    }
-    if (horizontal >= FLIP_MOUSE_THRESHOLD * VARIAL_FLIP_MULTIPLIER) {
-        return "varialflip";
-    }
-    if (horizontal >= FLIP_MOUSE_THRESHOLD * 0.75 && vertical >= FLIP_MOUSE_THRESHOLD) {
-        return deltaX * deltaY >= 0 ? "hardflip" : "inwardheel";
-    }
-    if (horizontal < FLIP_MOUSE_THRESHOLD * 0.75 && vertical >= FLIP_MOUSE_THRESHOLD) {
-        return "pressureflip";
-    }
+function getFlipTrick(deltaX) {
     return deltaX > 0 ? "kickflip" : "heelflip";
 }
 
+function getTrickPatterns() {
+    return [...trickSystemSettings.combos, trickSystemSettings.specialTrick];
+}
+
+function isSequenceMatch(events, sequence) {
+    return events.length >= sequence.length &&
+        sequence.every((key, index) => events[index].key === key);
+}
+
+function setTrickMessage(key) {
+    lastTrickMessage = key;
+    updateScoreUI();
+}
+
+function getPendingScorePreview() {
+    let preview = 0;
+    let multiplier = comboMultiplier;
+    for (const trick of pendingScoredTricks) {
+        preview += trick.points * multiplier;
+        multiplier += 1;
+    }
+    for (const event of trickInputBuffer) {
+        preview += Number(baseTrickPoints[event.key]) * multiplier;
+        multiplier += 1;
+    }
+    return preview;
+}
+
+function updateScoreUI() {
+    const bankedEl = document.getElementById("bankedScore");
+    const pendingEl = document.getElementById("pendingScore");
+    const multiplierEl = document.getElementById("scoreMultiplier");
+    const messageEl = document.getElementById("trickScoreMessage");
+    if (bankedEl) bankedEl.textContent = String(bankedScore);
+    if (pendingEl) pendingEl.textContent = String(getPendingScorePreview());
+    if (multiplierEl) multiplierEl.textContent = `x${comboMultiplier}`;
+    if (messageEl) messageEl.textContent = lastTrickMessage ? translate(lastTrickMessage) : "";
+}
+
+function queueBaseTrick(event) {
+    pendingScoredTricks.push({
+        key: event.key,
+        points: Number(baseTrickPoints[event.key]),
+        special: false
+    });
+    setTrickMessage(event.labelKey);
+}
+
+function triggerSpecialTrick(special) {
+    specialTrickTime = specialTrickDuration;
+    setTrickMessage(special.labelKey);
+}
+
+function resolveTrickInputBuffer(now = performance.now(), force = false) {
+    const patterns = getTrickPatterns();
+    while (trickInputBuffer.length > 0) {
+        const elapsed = now - trickInputBuffer[0].time;
+        const withinWindow = elapsed <= trickComboWindowMs;
+        const candidatePatterns = patterns.filter(pattern =>
+            pattern.sequence[0] === trickInputBuffer[0].key
+        );
+        const matches = candidatePatterns.filter(pattern =>
+            pattern.sequence.length <= trickInputBuffer.length &&
+            isSequenceMatch(trickInputBuffer, pattern.sequence) &&
+            trickInputBuffer[pattern.sequence.length - 1].time -
+                trickInputBuffer[0].time <= trickComboWindowMs
+        );
+        const isPendingPrefix = withinWindow && candidatePatterns.some(pattern =>
+            pattern.sequence.length > trickInputBuffer.length &&
+            trickInputBuffer.every((event, index) => event.key === pattern.sequence[index])
+        );
+
+        if (isPendingPrefix && !force) {
+            updateScoreUI();
+            return;
+        }
+        if (matches.length > 0) {
+            const pattern = matches.sort((a, b) =>
+                b.sequence.length - a.sequence.length ||
+                Number(Boolean(b.special)) - Number(Boolean(a.special))
+            )[0];
+            trickInputBuffer.splice(0, pattern.sequence.length);
+            pendingScoredTricks.push({
+                key: pattern.name,
+                points: Number(pattern.points),
+                special: Boolean(pattern.special)
+            });
+            if (pattern.special) triggerSpecialTrick(pattern);
+            else setTrickMessage(pattern.labelKey);
+            continue;
+        }
+
+        queueBaseTrick(trickInputBuffer.shift());
+    }
+    updateScoreUI();
+}
+
+function registerTrickInput(key, labelKey = `trick${key[0].toUpperCase()}${key.slice(1)}`, taskType = key) {
+    if (playerIsGrounded || !Number.isFinite(baseTrickPoints[key])) return;
+    const time = performance.now();
+    trickInputBuffer.push({ key, labelKey, time });
+    pendingBaseTricks.push({ type: taskType });
+    resolveTrickInputBuffer(time);
+}
+
+function settleTrickLanding(isBail) {
+    resolveTrickInputBuffer(performance.now(), true);
+    if (isBail) {
+        pendingScoredTricks = [];
+        pendingBaseTricks = [];
+        comboMultiplier = 1;
+        setTrickMessage("bailMessage");
+        return;
+    }
+
+    if (pendingScoredTricks.length === 0) {
+        comboMultiplier = 1;
+        pendingBaseTricks = [];
+        updateScoreUI();
+        return;
+    }
+
+    for (const trick of pendingScoredTricks) {
+        bankedScore += trick.points * comboMultiplier;
+        comboMultiplier += 1;
+    }
+    for (const trick of pendingBaseTricks) {
+        addTaskProgress(trick.type);
+        addDailyProgress(trick.type);
+        addTaskProgress("tricks");
+        addDailyProgress("tricks");
+    }
+    pendingScoredTricks = [];
+    pendingBaseTricks = [];
+    updateScoreUI();
+}
+
 function keyMatches(action, key) {
-    const binding = GAME_SETTINGS?.controls?.keyBindings?.[action] || [];
-    return binding.includes(key);
+    const alternatives = getBindingAlternatives(GAME_SETTINGS?.controls?.keyBindings?.[action]);
+    return alternatives.some(keys => keys.includes(key));
 }
 
 function getBindingLabel(action) {
     const binding = GAME_SETTINGS.controls.keyBindings[action] || [];
-    return binding.map(key => {
+    return getBindingAlternatives(binding).map(keys => keys.map(key => {
         if (key === " ") return "Space";
         if (key === "arrowup") return "↑";
         if (key === "arrowdown") return "↓";
         if (key === "arrowleft") return "←";
         if (key === "arrowright") return "→";
         return key.toUpperCase();
-    }).join(" + ");
+    }).join(" + ")).join(" / ");
 }
 
 function getTaskLabel(task) {
@@ -369,7 +528,6 @@ function playBoardAnim(name, loop = true, reverse = false, returnToIdle = true) 
         currentBoardAnim.onAnimationGroupEndObservable.remove(currentBoardAnimEndObserver);
         currentBoardAnimEndObserver = null;
     }
-    if (currentBoardAnim === activeTrickAnimation) activeTrickAnimation = null;
     boardAnimGroups.forEach(group => {
         if (group !== anim) group.stop();
     });
@@ -379,7 +537,6 @@ function playBoardAnim(name, loop = true, reverse = false, returnToIdle = true) 
         currentBoardAnimEndObserver = anim.onAnimationGroupEndObservable.addOnce(() => {
             if (currentBoardAnim !== anim) return;
             currentBoardAnimEndObserver = null;
-            if (activeTrickAnimation === anim) activeTrickAnimation = null;
             playBoardAnim("idle");
         });
     }
@@ -497,9 +654,7 @@ let taskProgress = readStoredJSON(
 
 function loadTasks() {
     const validTaskTypes = new Set([
-        "grind", "tricks", "shuvit", "manual", "kickflip", "heelflip",
-        "360flip", "varialflip", "hardflip", "inwardheel", "360shuvit",
-        "bigspin", "ollie", "varialshuvit", "laserflip", "pressureflip"
+        "grind", "tricks", "shuvit", "manual", "kickflip", "heelflip", "ollie"
     ]);
     ALL_TASKS = GAME_SETTINGS.tasks.filter(task =>
         task && typeof task.id === "string" &&
@@ -1071,7 +1226,7 @@ function applyLanguage() {
             getBindingLabel("backward"),
             getBindingLabel("left"),
             getBindingLabel("right")
-        ].filter(Boolean).join("/"),
+        ].filter(Boolean).join(" | "),
         push: getBindingLabel("push"),
         ollie: getBindingLabel("ollie"),
         grind: getBindingLabel("grind"),
@@ -1088,6 +1243,7 @@ function applyLanguage() {
     updateDailyUI();
     updateRushUI();
     updateTaskUI();
+    updateScoreUI();
 }
 
 const languageSelect = document.getElementById("languageSelect");
@@ -1315,7 +1471,7 @@ async function createGame() {
         viewer.showBody(boardPhysics.body);
     }
     
-    boardParts = { root: null, deck: null, frontTruck: null, rearTruck: null, wheels: { FL: null, FR: null, RL: null, RR: null } };
+    boardParts = { root: null, board: null, deck: null, frontTruck: null, rearTruck: null, wheels: { FL: null, FR: null, RL: null, RR: null } };
     gameScene = scene;
 
     try {
@@ -1342,8 +1498,6 @@ async function createGame() {
             return n.includes("push");
         });
         ollieAnim = boardAnimGroups.find(a => a.name.toLowerCase().includes("ollie"));
-        kickflipAnim = boardAnimGroups.find(a => a.name.toLowerCase() === "kf");
-        heelflipAnim = boardAnimGroups.find(a => a.name.toLowerCase() === "hf");
         crouchAnim = boardAnimGroups.find(a => a.name.toLowerCase() === "crouch");
         uncrouchAnim = boardAnimGroups.find(a => a.name.toLowerCase() === "uncrouch");
         if (!crouchAnim && uncrouchAnim) {
@@ -1371,6 +1525,14 @@ async function createGame() {
         boardParts.wheels.RR = findByName("WheelRR");
 
         if (boardParts.deck) {
+            boardParts.board = new BABYLON.TransformNode("boardTrickPivot", scene);
+            boardParts.board.parent = skateboard;
+            boardParts.board.position.copyFrom(boardParts.deck.position);
+            boardParts.board.rotation.set(0, 0, 0);
+            boardParts.board.scaling.set(1, 1, 1);
+            boardParts.deck.parent = boardParts.board;
+            boardParts.deck.position.set(0, 0, 0);
+
             // Niet de rotatie forceren als er animaties zijn
             if (boardAnimGroups.length === 0) {
                 boardParts.deck.rotationQuaternion = null; 
@@ -1382,6 +1544,10 @@ async function createGame() {
             if (boardParts.rearTruck && boardParts.rearTruck.parent !== boardParts.deck) {
                 boardParts.rearTruck.parent = boardParts.deck;
             }
+        } else {
+            console.warn("Skateboardmodel bevat geen boardnode voor visuele tricks.", {
+                gevonden: result.meshes.map(mesh => mesh.name)
+            });
         }
 
         // Root nooit forceren als er animaties op zitten
@@ -1561,20 +1727,14 @@ async function createGame() {
 
     canvas.addEventListener("wheel", (e) => {
         e.preventDefault();
-        if (!isPointerLocked) return;
-        const now = performance.now();
-        const isDoubleScroll = now - lastShuvitTime <= DOUBLE_SHUVIT_WINDOW_MS;
-        const shuvitType = Math.abs(e.deltaY) >= LARGE_SHUVIT_DELTA
-            ? "360shuvit"
-            : isDoubleScroll ? "varialshuvit" : "shuvit";
-        lastShuvitTime = now;
+        if (!isPointerLocked || e.deltaY === 0) return;
+        const side = e.deltaY > 0 ? "bs" : "fs";
+        const turns = Math.abs(e.deltaY) >= shuvit360Delta ? 2 : 1;
         shuvitDir = e.deltaY < 0 ? 1 : -1;
-        activeShuvitTurns = shuvitType === "360shuvit" ? 2 : 1;
+        activeShuvitTurns = turns;
         isShuviting = true;
         shuvitProgress = 0;
-        addDailyProgress(shuvitType === "shuvit" ? "shuvit" : "tricks");
-        addTaskProgress(shuvitType);
-        addTaskProgress('tricks');
+        registerTrickInput(`shuvit_${side}_${turns === 2 ? 360 : 180}`, "trickShuvit", "shuvit");
     }, { passive: false });
 
     // --- GAME LOOP ---
@@ -1688,6 +1848,18 @@ async function createGame() {
         const groundRay = new BABYLON.Ray(groundRayOrigin, BABYLON.Vector3.Down(), 0.8);
         const groundHit = scene.pickWithRay(groundRay, (m) => m !== physicsMesh && m !== grindCylinder && m !== boardLine);
         isGrounded = !!(groundHit && groundHit.hit);
+        const wasGrounded = playerIsGrounded;
+        playerIsGrounded = isGrounded;
+        resolveTrickInputBuffer();
+        if (!wasGrounded && isGrounded) {
+            const boardUp = physicsMesh.rotationQuaternion
+                ? BABYLON.Vector3.Up().rotateByQuaternionToRef(
+                    physicsMesh.rotationQuaternion,
+                    new BABYLON.Vector3()
+                )
+                : BABYLON.Vector3.Up();
+            settleTrickLanding(boardUp.y < 0.35);
+        }
         if (isGrounded && Math.abs(currentVelocity.y) < 1 && ollieTimer <= 0) {
             canOllie = true;
         }
@@ -1742,29 +1914,13 @@ async function createGame() {
                         addDailyProgress('tricks');
                     }
 
-                    if (!isFlipping && !isGrounded &&
-                        (Math.abs(mouseDeltaX) > FLIP_MOUSE_THRESHOLD ||
-                            Math.abs(mouseDeltaY) > MANUAL_FLICK_THRESHOLD)) {
+                    if (!isGrounded &&
+                        Math.abs(mouseDeltaX) > FLIP_MOUSE_THRESHOLD) {
                         isFlipping = true;
                         flipDir = mouseDeltaX > 0 ? 1 : -1;
                         flipProgress = 0;
-                        activeFlipType = getFlipTrick(mouseDeltaX, mouseDeltaY);
-                        activeFlipYawTurns = {
-                            varialflip: 0.5,
-                            "360flip": 1,
-                            laserflip: 1,
-                            bigspin: 1
-                        }[activeFlipType] || 0;
-                        const trickAnimation = activeFlipType === "kickflip" ? kickflipAnim
-                            : activeFlipType === "heelflip" ? heelflipAnim
-                                : null;
-                        if (trickAnimation && playBoardAnim(trickAnimation.name, false)) {
-                            activeTrickAnimation = trickAnimation;
-                        }
-                        addDailyProgress(activeFlipType);
-                        addDailyProgress('tricks');
-                        addTaskProgress(activeFlipType);
-                        addTaskProgress('tricks');
+                        activeFlipType = getFlipTrick(mouseDeltaX);
+                        registerTrickInput(activeFlipType);
                     }
                 }
                 mouseDeltaX = 0;
@@ -1829,30 +1985,31 @@ async function createGame() {
         }
 
         // Visuele shuvit
-        if (boardParts.root && isShuviting) {
+        if (boardParts.board && isShuviting) {
             shuvitProgress += dt / SHUVIT_DURATION;
             if (shuvitProgress >= 1) {
                 isShuviting = false;
-                boardParts.root.rotation.y = 0;
+                boardParts.board.rotation.y = 0;
             } else {
-                boardParts.root.rotation.y = shuvitDir * shuvitProgress * Math.PI * activeShuvitTurns;
+                boardParts.board.rotation.y = shuvitDir * shuvitProgress * Math.PI * activeShuvitTurns;
             }
         }
 
         // Ollie + flip visueel
         if (boardParts.deck) {
+            const boardRotation = boardParts.board || boardParts.deck;
             if (ollieTimer > 0) {
                 ollieTimer -= dt;
                 const progress = (OLLIE_DURATION - ollieTimer) / OLLIE_DURATION;
                 if (progress < 0.3) {
                     const t = progress / 0.3;
-                    boardParts.deck.rotation.x = BABYLON.Scalar.Lerp(0, -0.4, t);
+                    boardRotation.rotation.x = BABYLON.Scalar.Lerp(0, -0.4, t);
                 } else {
                     const t = (progress - 0.3) / 0.7;
-                    boardParts.deck.rotation.x = BABYLON.Scalar.Lerp(-0.4, 0, t);
+                    boardRotation.rotation.x = BABYLON.Scalar.Lerp(-0.4, 0, t);
                 }
             } else if (!isFlipping) {
-                boardParts.deck.rotation.x = 0;
+                boardRotation.rotation.x = 0;
             }
 
             if (isFlipping) {
@@ -1860,18 +2017,27 @@ async function createGame() {
                 if (flipProgress >= 1) {
                     isFlipping = false;
                     flipProgress = 0;
-                    boardParts.deck.rotation.z = 0;
-                    boardParts.root.rotation.y = 0;
-                    activeFlipYawTurns = 0;
-                } else if (!activeTrickAnimation) {
-                    boardParts.deck.rotation.z = flipDir * flipProgress * Math.PI * 2;
-                    boardParts.root.rotation.y = flipDir * flipProgress * Math.PI * 2 * activeFlipYawTurns;
-                    if (activeFlipType === "hardflip" || activeFlipType === "inwardheel") {
-                        boardParts.deck.rotation.x = Math.sin(flipProgress * Math.PI) * Math.PI * 0.35;
-                    }
+                    if (boardParts.board) boardParts.board.rotation.set(0, 0, 0);
+                } else if (boardParts.board) {
+                    boardParts.board.rotation.z = flipDir * flipProgress * Math.PI * 2;
                 }
-            } else if (!activeTrickAnimation) {
-                boardParts.deck.rotation.z = 0;
+            } else if (boardParts.board) {
+                boardParts.board.rotation.z = 0;
+            }
+        }
+
+        if (specialTrickTime > 0) {
+            specialTrickTime = Math.max(0, specialTrickTime - dt);
+            const progress = 1 - specialTrickTime / specialTrickDuration;
+            if (boardParts.board) {
+                boardParts.board.rotation.y = Math.PI * 4 * progress;
+                boardParts.board.rotation.z = Math.PI * 2 * progress;
+                const pulse = 1 + 0.18 * Math.sin(progress * Math.PI);
+                boardParts.board.scaling.set(pulse, pulse, pulse);
+                if (specialTrickTime === 0) {
+                    boardParts.board.scaling.set(1, 1, 1);
+                    if (!isFlipping && !isShuviting) boardParts.board.rotation.set(0, 0, 0);
+                }
             }
         }
 
@@ -1911,17 +2077,18 @@ loadGameSettings().then(() => {
 
 window.addEventListener("resize", () => { engine.resize(); });
 
-const creditsModal = document.getElementById("creditsModal");
-const creditsButton = document.getElementById("openBtn");
-const creditsCloseButton = document.querySelector("#creditsModal .close");
-if (creditsButton && creditsModal) {
-    creditsButton.addEventListener("click", () => { creditsModal.style.display = "block"; });
-}
-if (creditsCloseButton && creditsModal) {
-    creditsCloseButton.addEventListener("click", () => { creditsModal.style.display = "none"; });
-}
-if (creditsModal) {
-    creditsModal.addEventListener("click", (event) => {
-        if (event.target === creditsModal) creditsModal.style.display = "none";
+function setupModal(modalId, buttonId) {
+    const modal = document.getElementById(modalId);
+    const button = document.getElementById(buttonId);
+    const closeButton = modal?.querySelector(".close");
+    if (!modal || !button || !closeButton) return;
+
+    button.addEventListener("click", () => { modal.style.display = "block"; });
+    closeButton.addEventListener("click", () => { modal.style.display = "none"; });
+    modal.addEventListener("click", (event) => {
+        if (event.target === modal) modal.style.display = "none";
     });
 }
+
+setupModal("creditsModal", "openBtn");
+setupModal("trickGuideModal", "trickGuideButton");

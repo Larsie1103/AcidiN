@@ -6,10 +6,7 @@
       "push": [
         " "
       ],
-      "ollie": [
-        "shift",
-        "w"
-      ],
+      "ollie": "shift && w",
       "grind": [
         "q"
       ],
@@ -61,7 +58,7 @@
   },
   "assets": {
     "map": "models/maps/map.glb",
-    "board": "models/full_boards/Untitled.glb",
+    "board": "models/full_boards/skateboard.glb",
     "wheelDirectory": "models/wheels/"
   },
   "gameplay": {
@@ -114,11 +111,96 @@
       "grindDetectionDiameter": 10.2,
       "grindDetectionHeight": 2.5,
       "boardLineLength": 4.2,
-      "boardLineOffsetY": -0.15,
-      "advancedFlipMultiplier": 2.4,
-      "varialFlipMultiplier": 1.5,
-      "doubleShuvitWindowMs": 300,
-      "largeShuvitDelta": 180
+      "boardLineOffsetY": -0.15
+    },
+    "trickSystem": {
+      "comboWindowMs": 350,
+      "shuvit360Delta": 180,
+      "basePoints": {
+        "shuvit_bs_180": 100,
+        "shuvit_fs_180": 100,
+        "shuvit_bs_360": 150,
+        "shuvit_fs_360": 150,
+        "kickflip": 120,
+        "heelflip": 120
+      },
+      "combos": [
+        {
+          "name": "varialKickflip",
+          "labelKey": "comboVarialKickflip",
+          "sequence": [
+            "shuvit_bs_180",
+            "kickflip"
+          ],
+          "points": 350
+        },
+        {
+          "name": "hardflip",
+          "labelKey": "comboHardflip",
+          "sequence": [
+            "shuvit_fs_180",
+            "kickflip"
+          ],
+          "points": 375
+        },
+        {
+          "name": "360Flip",
+          "labelKey": "combo360Flip",
+          "sequence": [
+            "shuvit_bs_360",
+            "kickflip"
+          ],
+          "points": 500
+        },
+        {
+          "name": "nightmareFlip",
+          "labelKey": "comboNightmareFlip",
+          "sequence": [
+            "shuvit_bs_180",
+            "kickflip",
+            "kickflip"
+          ],
+          "points": 550
+        },
+        {
+          "name": "varialHeelflip",
+          "labelKey": "comboVarialHeelflip",
+          "sequence": [
+            "shuvit_fs_180",
+            "heelflip"
+          ],
+          "points": 350
+        },
+        {
+          "name": "inwardHeelflip",
+          "labelKey": "comboInwardHeelflip",
+          "sequence": [
+            "shuvit_bs_180",
+            "heelflip"
+          ],
+          "points": 375
+        },
+        {
+          "name": "laserFlip",
+          "labelKey": "comboLaserFlip",
+          "sequence": [
+            "shuvit_fs_360",
+            "heelflip"
+          ],
+          "points": 500
+        }
+      ],
+      "specialTrick": {
+        "name": "specialTrick",
+        "labelKey": "specialTrickName",
+        "sequence": [
+          "shuvit_bs_360",
+          "kickflip",
+          "heelflip"
+        ],
+        "points": 2000,
+        "special": true
+      }
     },
     "rush": {
       "durationSeconds": 180,
@@ -283,6 +365,12 @@
       "tasks": "Tasks",
       "shop": "Shop",
       "credits": "Credits",
+      "trickGuide": "Trick Guide",
+      "trickGuideClose": "Close trick guide",
+      "trickGuideIntro": "Click the game to lock the mouse pointer. Perform mouse flicks while airborne; use the scroll wheel for shuvits.",
+      "trickGuideBasic": "Kickflip: flick right. Heelflip: flick left. Large or diagonal flicks still count as one base flip.",
+      "trickGuideShuvits": "Scroll down for BS or up for FS. A short scroll is 180; a larger scroll is 360.",
+      "trickComboCredit": "Special Trick: BS 360 Shuvit + Kickflip + Heelflip",
       "dailyMission": "DAILY MISSION",
       "today": "TODAY",
       "rush": "RUSH",
@@ -328,16 +416,25 @@
       "dailyShuvit": "Do {target} shuvits",
       "dailyTricks": "Land {target} tricks",
       "controlsHint": "{movement} move | {push} push | {ollie} ollie | {grind} grind | {switchWheels} wheels | {menu} menu | {settings} settings | {shuvitControl} | {trickControl}",
-      "type360flip": "360 flips",
-      "typeVarialflip": "varial flips",
-      "typeHardflip": "hardflips",
-      "typeInwardheel": "inward heels",
-      "type360shuvit": "360 shuvits",
-      "typeBigspin": "bigspins",
       "typeOllie": "ollies",
-      "typeVarialshuvit": "varial shuvits",
-      "typeLaserflip": "laser flips",
-      "typePressureflip": "pressure flips"
+      "trickGuideCombo": "Within 0.35 seconds: BS 180 + Kickflip = Varial Kickflip; FS 180 + Kickflip = Hardflip; BS 360 + Kickflip = 360 Flip; BS 180 + two Kickflips = Nightmare Flip; FS 180 + Heelflip = Varial Heelflip; BS 180 + Heelflip = Inward Heelflip; FS 360 + Heelflip = Laser Flip.",
+      "scoreTitle": "TRICK SCORE",
+      "bankedScoreLabel": "Score",
+      "unbankedScoreLabel": "Unbanked",
+      "multiplierLabel": "Multiplier",
+      "trickKickflip": "Kickflip",
+      "trickHeelflip": "Heelflip",
+      "trickShuvit": "Shuvit",
+      "comboVarialKickflip": "Varial Kickflip",
+      "comboHardflip": "Hardflip",
+      "combo360Flip": "360 Flip",
+      "comboNightmareFlip": "Nightmare Flip",
+      "comboVarialHeelflip": "Varial Heelflip",
+      "comboInwardHeelflip": "Inward Heelflip",
+      "comboLaserFlip": "Laser Flip",
+      "specialTrickName": "SPECIAL TRICK",
+      "bailMessage": "BAIL! Unbanked score lost.",
+      "trickGuideSpecial": "Exact Special Trick sequence: BS 360 Shuvit, then Kickflip, then Heelflip, all within the combo window. An incorrect sequence falls back to standard tricks."
     },
     "nl": {
       "loading": "Laden...",
@@ -356,6 +453,12 @@
       "tasks": "Taken",
       "shop": "Shop",
       "credits": "Credits",
+      "trickGuide": "Trickuitleg",
+      "trickGuideClose": "Trickuitleg sluiten",
+      "trickGuideIntro": "Klik op het spel om de muis vast te zetten. Maak muisflicks in de lucht; gebruik het scrollwiel voor shuvits.",
+      "trickGuideBasic": "Kickflip: flick naar rechts. Heelflip: flick naar links. Een grote of diagonale flick blijft ??n basistrick.",
+      "trickGuideShuvits": "Scroll omlaag voor BS of omhoog voor FS. Een korte scroll is 180; een scroll vanaf de ingestelde drempel is 360.",
+      "trickComboCredit": "Special Trick: BS 360 Shuvit + Kickflip + Heelflip",
       "dailyMission": "DAGMISSIE",
       "today": "VANDAAG",
       "rush": "RUSH",
@@ -401,16 +504,25 @@
       "dailyShuvit": "Doe {target} shuvits",
       "dailyTricks": "Land {target} tricks",
       "controlsHint": "{movement} bewegen | {push} push | {ollie} ollie | {grind} grind | {switchWheels} wielen | {menu} menu | {settings} instellingen | {shuvitControl} | {trickControl}",
-      "type360flip": "360 flips",
-      "typeVarialflip": "varial flips",
-      "typeHardflip": "hardflips",
-      "typeInwardheel": "inward heels",
-      "type360shuvit": "360 shuvits",
-      "typeBigspin": "bigspins",
       "typeOllie": "ollies",
-      "typeVarialshuvit": "varial shuvits",
-      "typeLaserflip": "laser flips",
-      "typePressureflip": "pressure flips"
+      "trickGuideCombo": "Binnen 0,35 seconden: BS 180 + Kickflip = Varial Kickflip; FS 180 + Kickflip = Hardflip; BS 360 + Kickflip = 360 Flip; BS 180 + twee Kickflips = Nightmare Flip; FS 180 + Heelflip = Varial Heelflip; BS 180 + Heelflip = Inward Heelflip; FS 360 + Heelflip = Laser Flip.",
+      "scoreTitle": "TRICK-SCORE",
+      "bankedScoreLabel": "Score",
+      "unbankedScoreLabel": "Niet vastgezet",
+      "multiplierLabel": "Multiplier",
+      "trickKickflip": "Kickflip",
+      "trickHeelflip": "Heelflip",
+      "trickShuvit": "Shuvit",
+      "comboVarialKickflip": "Varial Kickflip",
+      "comboHardflip": "Hardflip",
+      "combo360Flip": "360 Flip",
+      "comboNightmareFlip": "Nightmare Flip",
+      "comboVarialHeelflip": "Varial Heelflip",
+      "comboInwardHeelflip": "Inward Heelflip",
+      "comboLaserFlip": "Laser Flip",
+      "specialTrickName": "SPECIAL TRICK",
+      "bailMessage": "BAIL! Niet-vastgezette score verloren.",
+      "trickGuideSpecial": "Exacte Special Trick-reeks: BS 360 Shuvit, daarna Kickflip en daarna Heelflip, allemaal binnen het combo-venster. Bij een verkeerde reeks worden gewone tricks uitgevoerd."
     },
     "es": {
       "loading": "Cargando...",
@@ -429,6 +541,12 @@
       "tasks": "Tareas",
       "shop": "Tienda",
       "credits": "Créditos",
+      "trickGuide": "Guía de trucos",
+      "trickGuideClose": "Cerrar guía de trucos",
+      "trickGuideIntro": "Haz clic en el juego para bloquear el puntero. Haz movimientos rápidos con el ratón en el aire; usa la rueda para los shuvits.",
+      "trickGuideBasic": "Kickflip: mueve el ratón a la derecha. Heelflip: a la izquierda. Un movimiento amplio o diagonal sigue siendo un truco básico.",
+      "trickGuideShuvits": "Desplaza hacia abajo para BS o hacia arriba para FS. Un desplazamiento corto es 180; uno más largo es 360.",
+      "trickComboCredit": "Special Trick: BS 360 Shuvit + Kickflip + Heelflip",
       "dailyMission": "MISIÓN DIARIA",
       "today": "HOY",
       "rush": "RUSH",
@@ -474,16 +592,25 @@
       "dailyShuvit": "Haz {target} shuvits",
       "dailyTricks": "Aterriza {target} trucos",
       "controlsHint": "{movement} moverse | {push} impulsarse | {ollie} ollie | {grind} grind | {switchWheels} ruedas | {menu} menú | {settings} ajustes | {shuvitControl} | {trickControl}",
-      "type360flip": "360 flips",
-      "typeVarialflip": "varial flips",
-      "typeHardflip": "hardflips",
-      "typeInwardheel": "inward heels",
-      "type360shuvit": "360 shuvits",
-      "typeBigspin": "bigspins",
       "typeOllie": "ollies",
-      "typeVarialshuvit": "varial shuvits",
-      "typeLaserflip": "laser flips",
-      "typePressureflip": "pressure flips"
+      "trickGuideCombo": "En 0,35 segundos: BS 180 + Kickflip = Varial Kickflip; FS 180 + Kickflip = Hardflip; BS 360 + Kickflip = 360 Flip; BS 180 + dos Kickflips = Nightmare Flip; FS 180 + Heelflip = Varial Heelflip; BS 180 + Heelflip = Inward Heelflip; FS 360 + Heelflip = Laser Flip.",
+      "scoreTitle": "PUNTUACIÓN DE TRUCOS",
+      "bankedScoreLabel": "Puntuación",
+      "unbankedScoreLabel": "Sin guardar",
+      "multiplierLabel": "Multiplicador",
+      "trickKickflip": "Kickflip",
+      "trickHeelflip": "Heelflip",
+      "trickShuvit": "Shuvit",
+      "comboVarialKickflip": "Varial Kickflip",
+      "comboHardflip": "Hardflip",
+      "combo360Flip": "360 Flip",
+      "comboNightmareFlip": "Nightmare Flip",
+      "comboVarialHeelflip": "Varial Heelflip",
+      "comboInwardHeelflip": "Inward Heelflip",
+      "comboLaserFlip": "Laser Flip",
+      "specialTrickName": "SPECIAL TRICK",
+      "bailMessage": "¡BAIL! Se pierde la puntuación sin guardar.",
+      "trickGuideSpecial": "Secuencia exacta de Special Trick: BS 360 Shuvit, luego Kickflip y luego Heelflip, todo dentro del intervalo de combo. Una secuencia incorrecta se resuelve como trucos normales."
     },
     "de": {
       "loading": "Laden...",
@@ -502,6 +629,12 @@
       "tasks": "Aufgaben",
       "shop": "Shop",
       "credits": "Credits",
+      "trickGuide": "Trick-Anleitung",
+      "trickGuideClose": "Trick-Anleitung schließen",
+      "trickGuideIntro": "Klicke ins Spiel, um den Mauszeiger zu fixieren. Führe in der Luft schnelle Mausbewegungen aus; nutze das Scrollrad für Shuvits.",
+      "trickGuideBasic": "Kickflip: nach rechts flicken. Heelflip: nach links flicken. Auch ein gro?er oder diagonaler Flick bleibt ein Grundtrick.",
+      "trickGuideShuvits": "Nach unten scrollen f?r BS, nach oben f?r FS. Kurzes Scrollen ist 180; ab dem eingestellten Schwellenwert ist es 360.",
+      "trickComboCredit": "Special Trick: BS 360 Shuvit + Kickflip + Heelflip",
       "dailyMission": "TAGESMISSION",
       "today": "HEUTE",
       "rush": "RUSH",
@@ -547,16 +680,25 @@
       "dailyShuvit": "Mache {target} Shuvits",
       "dailyTricks": "Lande {target} Tricks",
       "controlsHint": "{movement} bewegen | {push} pushen | {ollie} Ollie | {grind} Grind | {switchWheels} Räder | {menu} Menü | {settings} Einstellungen | {shuvitControl} | {trickControl}",
-      "type360flip": "360 Flips",
-      "typeVarialflip": "Varial Flips",
-      "typeHardflip": "Hardflips",
-      "typeInwardheel": "Inward Heels",
-      "type360shuvit": "360 Shuvits",
-      "typeBigspin": "Bigspins",
       "typeOllie": "Ollies",
-      "typeVarialshuvit": "Varial Shuvits",
-      "typeLaserflip": "Laser Flips",
-      "typePressureflip": "Pressure Flips"
+      "trickGuideCombo": "Innerhalb von 0,35 Sekunden: BS 180 + Kickflip = Varial Kickflip; FS 180 + Kickflip = Hardflip; BS 360 + Kickflip = 360 Flip; BS 180 + zwei Kickflips = Nightmare Flip; FS 180 + Heelflip = Varial Heelflip; BS 180 + Heelflip = Inward Heelflip; FS 360 + Heelflip = Laser Flip.",
+      "scoreTitle": "TRICK-PUNKTE",
+      "bankedScoreLabel": "Punkte",
+      "unbankedScoreLabel": "Ungesichert",
+      "multiplierLabel": "Multiplikator",
+      "trickKickflip": "Kickflip",
+      "trickHeelflip": "Heelflip",
+      "trickShuvit": "Shuvit",
+      "comboVarialKickflip": "Varial Kickflip",
+      "comboHardflip": "Hardflip",
+      "combo360Flip": "360 Flip",
+      "comboNightmareFlip": "Nightmare Flip",
+      "comboVarialHeelflip": "Varial Heelflip",
+      "comboInwardHeelflip": "Inward Heelflip",
+      "comboLaserFlip": "Laser Flip",
+      "specialTrickName": "SPECIAL TRICK",
+      "bailMessage": "BAIL! Ungesicherte Punkte verloren.",
+      "trickGuideSpecial": "Exakte Special-Trick-Folge: BS 360 Shuvit, dann Kickflip, dann Heelflip, alles innerhalb des Combo-Fensters. Eine falsche Folge wird als normale Tricks gewertet."
     },
     "fr": {
       "loading": "Chargement...",
@@ -575,6 +717,12 @@
       "tasks": "Tâches",
       "shop": "Boutique",
       "credits": "Crédits",
+      "trickGuide": "Guide des figures",
+      "trickGuideClose": "Fermer le guide des figures",
+      "trickGuideIntro": "Clique sur le jeu pour verrouiller le pointeur. Fais des mouvements rapides de souris en l'air ; utilise la molette pour les shuvits.",
+      "trickGuideBasic": "Kickflip : mouvement vers la droite. Heelflip : vers la gauche. Un mouvement ample ou diagonal reste une figure de base.",
+      "trickGuideShuvits": "Fais défiler vers le bas pour BS ou vers le haut pour FS. Un défilement court vaut 180 ; un défilement plus ample vaut 360.",
+      "trickComboCredit": "Special Trick: BS 360 Shuvit + Kickflip + Heelflip",
       "dailyMission": "MISSION DU JOUR",
       "today": "AUJOURD'HUI",
       "rush": "RUSH",
@@ -620,16 +768,25 @@
       "dailyShuvit": "Fais {target} shuvits",
       "dailyTricks": "Réussis {target} figures",
       "controlsHint": "{movement} bouger | {push} pousser | {ollie} ollie | {grind} grind | {switchWheels} roues | {menu} menu | {settings} paramètres | {shuvitControl} | {trickControl}",
-      "type360flip": "360 flips",
-      "typeVarialflip": "varial flips",
-      "typeHardflip": "hardflips",
-      "typeInwardheel": "inward heels",
-      "type360shuvit": "360 shuvits",
-      "typeBigspin": "bigspins",
       "typeOllie": "ollies",
-      "typeVarialshuvit": "varial shuvits",
-      "typeLaserflip": "laser flips",
-      "typePressureflip": "pressure flips"
+      "trickGuideCombo": "En 0,35 seconde : BS 180 + Kickflip = Varial Kickflip ; FS 180 + Kickflip = Hardflip ; BS 360 + Kickflip = 360 Flip ; BS 180 + deux Kickflips = Nightmare Flip ; FS 180 + Heelflip = Varial Heelflip ; BS 180 + Heelflip = Inward Heelflip ; FS 360 + Heelflip = Laser Flip.",
+      "scoreTitle": "SCORE DES FIGURES",
+      "bankedScoreLabel": "Score",
+      "unbankedScoreLabel": "Non validé",
+      "multiplierLabel": "Multiplicateur",
+      "trickKickflip": "Kickflip",
+      "trickHeelflip": "Heelflip",
+      "trickShuvit": "Shuvit",
+      "comboVarialKickflip": "Varial Kickflip",
+      "comboHardflip": "Hardflip",
+      "combo360Flip": "360 Flip",
+      "comboNightmareFlip": "Nightmare Flip",
+      "comboVarialHeelflip": "Varial Heelflip",
+      "comboInwardHeelflip": "Inward Heelflip",
+      "comboLaserFlip": "Laser Flip",
+      "specialTrickName": "SPECIAL TRICK",
+      "bailMessage": "BAIL ! Le score non validé est perdu.",
+      "trickGuideSpecial": "Séquence exacte du Special Trick : BS 360 Shuvit, puis Kickflip, puis Heelflip, le tout dans le délai de combo. Une séquence incorrecte donne les figures normales."
     }
   },
   "tasks": [
@@ -1264,421 +1421,421 @@
       "verb": "do"
     },
     {
-      "id": "skill_360flip_01",
-      "type": "360flip",
+      "id": "skill_varialflip_360_bonus_01",
+      "type": "kickflip",
       "target": 1,
       "reward": 3,
       "verb": "do"
     },
     {
-      "id": "skill_360flip_02",
-      "type": "360flip",
+      "id": "skill_varialflip_360_bonus_02",
+      "type": "kickflip",
       "target": 2,
       "reward": 5,
       "verb": "do"
     },
     {
-      "id": "skill_360flip_03",
-      "type": "360flip",
+      "id": "skill_varialflip_360_bonus_03",
+      "type": "kickflip",
       "target": 3,
       "reward": 6,
       "verb": "do"
     },
     {
-      "id": "skill_360flip_04",
-      "type": "360flip",
+      "id": "skill_varialflip_360_bonus_04",
+      "type": "kickflip",
       "target": 4,
       "reward": 8,
       "verb": "do"
     },
     {
-      "id": "skill_360flip_05",
-      "type": "360flip",
+      "id": "skill_varialflip_360_bonus_05",
+      "type": "kickflip",
       "target": 5,
       "reward": 9,
       "verb": "do"
     },
     {
-      "id": "skill_360flip_06",
-      "type": "360flip",
+      "id": "skill_varialflip_360_bonus_06",
+      "type": "kickflip",
       "target": 6,
       "reward": 10,
       "verb": "do"
     },
     {
-      "id": "skill_360flip_07",
-      "type": "360flip",
+      "id": "skill_varialflip_360_bonus_07",
+      "type": "kickflip",
       "target": 8,
       "reward": 13,
       "verb": "do"
     },
     {
-      "id": "skill_360flip_08",
-      "type": "360flip",
+      "id": "skill_varialflip_360_bonus_08",
+      "type": "kickflip",
       "target": 10,
       "reward": 16,
       "verb": "do"
     },
     {
-      "id": "skill_360flip_09",
-      "type": "360flip",
+      "id": "skill_varialflip_360_bonus_09",
+      "type": "kickflip",
       "target": 12,
       "reward": 19,
       "verb": "do"
     },
     {
-      "id": "skill_360flip_10",
-      "type": "360flip",
+      "id": "skill_varialflip_360_bonus_10",
+      "type": "kickflip",
       "target": 15,
       "reward": 23,
       "verb": "do"
     },
     {
       "id": "skill_varialflip_01",
-      "type": "varialflip",
+      "type": "kickflip",
       "target": 1,
       "reward": 1,
       "verb": "do"
     },
     {
       "id": "skill_varialflip_02",
-      "type": "varialflip",
+      "type": "kickflip",
       "target": 2,
       "reward": 3,
       "verb": "do"
     },
     {
       "id": "skill_varialflip_03",
-      "type": "varialflip",
+      "type": "kickflip",
       "target": 3,
       "reward": 4,
       "verb": "do"
     },
     {
       "id": "skill_varialflip_04",
-      "type": "varialflip",
+      "type": "kickflip",
       "target": 4,
       "reward": 6,
       "verb": "do"
     },
     {
       "id": "skill_varialflip_05",
-      "type": "varialflip",
+      "type": "kickflip",
       "target": 5,
       "reward": 7,
       "verb": "do"
     },
     {
       "id": "skill_varialflip_06",
-      "type": "varialflip",
+      "type": "kickflip",
       "target": 6,
       "reward": 8,
       "verb": "do"
     },
     {
       "id": "skill_varialflip_07",
-      "type": "varialflip",
+      "type": "kickflip",
       "target": 8,
       "reward": 11,
       "verb": "do"
     },
     {
       "id": "skill_varialflip_08",
-      "type": "varialflip",
+      "type": "kickflip",
       "target": 10,
       "reward": 14,
       "verb": "do"
     },
     {
       "id": "skill_varialflip_09",
-      "type": "varialflip",
+      "type": "kickflip",
       "target": 12,
       "reward": 17,
       "verb": "do"
     },
     {
       "id": "skill_varialflip_10",
-      "type": "varialflip",
+      "type": "kickflip",
       "target": 15,
       "reward": 21,
       "verb": "do"
     },
     {
       "id": "skill_hardflip_01",
-      "type": "hardflip",
+      "type": "kickflip",
       "target": 1,
       "reward": 3,
       "verb": "do"
     },
     {
       "id": "skill_hardflip_02",
-      "type": "hardflip",
+      "type": "kickflip",
       "target": 2,
       "reward": 5,
       "verb": "do"
     },
     {
       "id": "skill_hardflip_03",
-      "type": "hardflip",
+      "type": "kickflip",
       "target": 3,
       "reward": 6,
       "verb": "do"
     },
     {
       "id": "skill_hardflip_04",
-      "type": "hardflip",
+      "type": "kickflip",
       "target": 4,
       "reward": 8,
       "verb": "do"
     },
     {
       "id": "skill_hardflip_05",
-      "type": "hardflip",
+      "type": "kickflip",
       "target": 5,
       "reward": 9,
       "verb": "do"
     },
     {
       "id": "skill_hardflip_06",
-      "type": "hardflip",
+      "type": "kickflip",
       "target": 6,
       "reward": 10,
       "verb": "do"
     },
     {
       "id": "skill_hardflip_07",
-      "type": "hardflip",
+      "type": "kickflip",
       "target": 8,
       "reward": 13,
       "verb": "do"
     },
     {
       "id": "skill_hardflip_08",
-      "type": "hardflip",
+      "type": "kickflip",
       "target": 10,
       "reward": 16,
       "verb": "do"
     },
     {
       "id": "skill_hardflip_09",
-      "type": "hardflip",
+      "type": "kickflip",
       "target": 12,
       "reward": 19,
       "verb": "do"
     },
     {
       "id": "skill_hardflip_10",
-      "type": "hardflip",
+      "type": "kickflip",
       "target": 15,
       "reward": 23,
       "verb": "do"
     },
     {
       "id": "skill_inwardheel_01",
-      "type": "inwardheel",
+      "type": "heelflip",
       "target": 1,
       "reward": 3,
       "verb": "do"
     },
     {
       "id": "skill_inwardheel_02",
-      "type": "inwardheel",
+      "type": "heelflip",
       "target": 2,
       "reward": 5,
       "verb": "do"
     },
     {
       "id": "skill_inwardheel_03",
-      "type": "inwardheel",
+      "type": "heelflip",
       "target": 3,
       "reward": 6,
       "verb": "do"
     },
     {
       "id": "skill_inwardheel_04",
-      "type": "inwardheel",
+      "type": "heelflip",
       "target": 4,
       "reward": 8,
       "verb": "do"
     },
     {
       "id": "skill_inwardheel_05",
-      "type": "inwardheel",
+      "type": "heelflip",
       "target": 5,
       "reward": 9,
       "verb": "do"
     },
     {
       "id": "skill_inwardheel_06",
-      "type": "inwardheel",
+      "type": "heelflip",
       "target": 6,
       "reward": 10,
       "verb": "do"
     },
     {
       "id": "skill_inwardheel_07",
-      "type": "inwardheel",
+      "type": "heelflip",
       "target": 8,
       "reward": 13,
       "verb": "do"
     },
     {
       "id": "skill_inwardheel_08",
-      "type": "inwardheel",
+      "type": "heelflip",
       "target": 10,
       "reward": 16,
       "verb": "do"
     },
     {
       "id": "skill_inwardheel_09",
-      "type": "inwardheel",
+      "type": "heelflip",
       "target": 12,
       "reward": 19,
       "verb": "do"
     },
     {
       "id": "skill_inwardheel_10",
-      "type": "inwardheel",
+      "type": "heelflip",
       "target": 15,
       "reward": 23,
       "verb": "do"
     },
     {
       "id": "skill_360shuvit_01",
-      "type": "360shuvit",
+      "type": "shuvit",
       "target": 1,
       "reward": 3,
       "verb": "do"
     },
     {
       "id": "skill_360shuvit_02",
-      "type": "360shuvit",
+      "type": "shuvit",
       "target": 2,
       "reward": 5,
       "verb": "do"
     },
     {
       "id": "skill_360shuvit_03",
-      "type": "360shuvit",
+      "type": "shuvit",
       "target": 3,
       "reward": 6,
       "verb": "do"
     },
     {
       "id": "skill_360shuvit_04",
-      "type": "360shuvit",
+      "type": "shuvit",
       "target": 4,
       "reward": 8,
       "verb": "do"
     },
     {
       "id": "skill_360shuvit_05",
-      "type": "360shuvit",
+      "type": "shuvit",
       "target": 5,
       "reward": 9,
       "verb": "do"
     },
     {
       "id": "skill_360shuvit_06",
-      "type": "360shuvit",
+      "type": "shuvit",
       "target": 6,
       "reward": 10,
       "verb": "do"
     },
     {
       "id": "skill_360shuvit_07",
-      "type": "360shuvit",
+      "type": "shuvit",
       "target": 8,
       "reward": 13,
       "verb": "do"
     },
     {
       "id": "skill_360shuvit_08",
-      "type": "360shuvit",
+      "type": "shuvit",
       "target": 10,
       "reward": 16,
       "verb": "do"
     },
     {
       "id": "skill_360shuvit_09",
-      "type": "360shuvit",
+      "type": "shuvit",
       "target": 12,
       "reward": 19,
       "verb": "do"
     },
     {
       "id": "skill_360shuvit_10",
-      "type": "360shuvit",
+      "type": "shuvit",
       "target": 15,
       "reward": 23,
       "verb": "do"
     },
     {
       "id": "skill_bigspin_01",
-      "type": "bigspin",
+      "type": "kickflip",
       "target": 1,
       "reward": 3,
       "verb": "do"
     },
     {
       "id": "skill_bigspin_02",
-      "type": "bigspin",
+      "type": "kickflip",
       "target": 2,
       "reward": 5,
       "verb": "do"
     },
     {
       "id": "skill_bigspin_03",
-      "type": "bigspin",
+      "type": "kickflip",
       "target": 3,
       "reward": 6,
       "verb": "do"
     },
     {
       "id": "skill_bigspin_04",
-      "type": "bigspin",
+      "type": "kickflip",
       "target": 4,
       "reward": 8,
       "verb": "do"
     },
     {
       "id": "skill_bigspin_05",
-      "type": "bigspin",
+      "type": "kickflip",
       "target": 5,
       "reward": 9,
       "verb": "do"
     },
     {
       "id": "skill_bigspin_06",
-      "type": "bigspin",
+      "type": "kickflip",
       "target": 6,
       "reward": 10,
       "verb": "do"
     },
     {
       "id": "skill_bigspin_07",
-      "type": "bigspin",
+      "type": "kickflip",
       "target": 8,
       "reward": 13,
       "verb": "do"
     },
     {
       "id": "skill_bigspin_08",
-      "type": "bigspin",
+      "type": "kickflip",
       "target": 10,
       "reward": 16,
       "verb": "do"
     },
     {
       "id": "skill_bigspin_09",
-      "type": "bigspin",
+      "type": "kickflip",
       "target": 12,
       "reward": 19,
       "verb": "do"
     },
     {
       "id": "skill_bigspin_10",
-      "type": "bigspin",
+      "type": "kickflip",
       "target": 15,
       "reward": 23,
       "verb": "do"
@@ -1755,210 +1912,210 @@
     },
     {
       "id": "skill_varialshuvit_01",
-      "type": "varialshuvit",
+      "type": "shuvit",
       "target": 1,
       "reward": 1,
       "verb": "do"
     },
     {
       "id": "skill_varialshuvit_02",
-      "type": "varialshuvit",
+      "type": "shuvit",
       "target": 2,
       "reward": 3,
       "verb": "do"
     },
     {
       "id": "skill_varialshuvit_03",
-      "type": "varialshuvit",
+      "type": "shuvit",
       "target": 3,
       "reward": 4,
       "verb": "do"
     },
     {
       "id": "skill_varialshuvit_04",
-      "type": "varialshuvit",
+      "type": "shuvit",
       "target": 4,
       "reward": 6,
       "verb": "do"
     },
     {
       "id": "skill_varialshuvit_05",
-      "type": "varialshuvit",
+      "type": "shuvit",
       "target": 5,
       "reward": 7,
       "verb": "do"
     },
     {
       "id": "skill_varialshuvit_06",
-      "type": "varialshuvit",
+      "type": "shuvit",
       "target": 6,
       "reward": 8,
       "verb": "do"
     },
     {
       "id": "skill_varialshuvit_07",
-      "type": "varialshuvit",
+      "type": "shuvit",
       "target": 8,
       "reward": 11,
       "verb": "do"
     },
     {
       "id": "skill_varialshuvit_08",
-      "type": "varialshuvit",
+      "type": "shuvit",
       "target": 10,
       "reward": 14,
       "verb": "do"
     },
     {
       "id": "skill_varialshuvit_09",
-      "type": "varialshuvit",
+      "type": "shuvit",
       "target": 12,
       "reward": 17,
       "verb": "do"
     },
     {
       "id": "skill_varialshuvit_10",
-      "type": "varialshuvit",
+      "type": "shuvit",
       "target": 15,
       "reward": 21,
       "verb": "do"
     },
     {
-      "id": "skill_laserflip_01",
-      "type": "laserflip",
+      "id": "skill_varialflip_laser_bonus_01",
+      "type": "kickflip",
       "target": 1,
       "reward": 3,
       "verb": "do"
     },
     {
-      "id": "skill_laserflip_02",
-      "type": "laserflip",
+      "id": "skill_varialflip_laser_bonus_02",
+      "type": "kickflip",
       "target": 2,
       "reward": 5,
       "verb": "do"
     },
     {
-      "id": "skill_laserflip_03",
-      "type": "laserflip",
+      "id": "skill_varialflip_laser_bonus_03",
+      "type": "kickflip",
       "target": 3,
       "reward": 6,
       "verb": "do"
     },
     {
-      "id": "skill_laserflip_04",
-      "type": "laserflip",
+      "id": "skill_varialflip_laser_bonus_04",
+      "type": "kickflip",
       "target": 4,
       "reward": 8,
       "verb": "do"
     },
     {
-      "id": "skill_laserflip_05",
-      "type": "laserflip",
+      "id": "skill_varialflip_laser_bonus_05",
+      "type": "kickflip",
       "target": 5,
       "reward": 9,
       "verb": "do"
     },
     {
-      "id": "skill_laserflip_06",
-      "type": "laserflip",
+      "id": "skill_varialflip_laser_bonus_06",
+      "type": "kickflip",
       "target": 6,
       "reward": 10,
       "verb": "do"
     },
     {
-      "id": "skill_laserflip_07",
-      "type": "laserflip",
+      "id": "skill_varialflip_laser_bonus_07",
+      "type": "kickflip",
       "target": 8,
       "reward": 13,
       "verb": "do"
     },
     {
-      "id": "skill_laserflip_08",
-      "type": "laserflip",
+      "id": "skill_varialflip_laser_bonus_08",
+      "type": "kickflip",
       "target": 10,
       "reward": 16,
       "verb": "do"
     },
     {
-      "id": "skill_laserflip_09",
-      "type": "laserflip",
+      "id": "skill_varialflip_laser_bonus_09",
+      "type": "kickflip",
       "target": 12,
       "reward": 19,
       "verb": "do"
     },
     {
-      "id": "skill_laserflip_10",
-      "type": "laserflip",
+      "id": "skill_varialflip_laser_bonus_10",
+      "type": "kickflip",
       "target": 15,
       "reward": 23,
       "verb": "do"
     },
     {
       "id": "skill_pressureflip_01",
-      "type": "pressureflip",
+      "type": "heelflip",
       "target": 1,
       "reward": 3,
       "verb": "do"
     },
     {
       "id": "skill_pressureflip_02",
-      "type": "pressureflip",
+      "type": "heelflip",
       "target": 2,
       "reward": 5,
       "verb": "do"
     },
     {
       "id": "skill_pressureflip_03",
-      "type": "pressureflip",
+      "type": "heelflip",
       "target": 3,
       "reward": 6,
       "verb": "do"
     },
     {
       "id": "skill_pressureflip_04",
-      "type": "pressureflip",
+      "type": "heelflip",
       "target": 4,
       "reward": 8,
       "verb": "do"
     },
     {
       "id": "skill_pressureflip_05",
-      "type": "pressureflip",
+      "type": "heelflip",
       "target": 5,
       "reward": 9,
       "verb": "do"
     },
     {
       "id": "skill_pressureflip_06",
-      "type": "pressureflip",
+      "type": "heelflip",
       "target": 6,
       "reward": 10,
       "verb": "do"
     },
     {
       "id": "skill_pressureflip_07",
-      "type": "pressureflip",
+      "type": "heelflip",
       "target": 8,
       "reward": 13,
       "verb": "do"
     },
     {
       "id": "skill_pressureflip_08",
-      "type": "pressureflip",
+      "type": "heelflip",
       "target": 10,
       "reward": 16,
       "verb": "do"
     },
     {
       "id": "skill_pressureflip_09",
-      "type": "pressureflip",
+      "type": "heelflip",
       "target": 12,
       "reward": 19,
       "verb": "do"
     },
     {
       "id": "skill_pressureflip_10",
-      "type": "pressureflip",
+      "type": "heelflip",
       "target": 15,
       "reward": 23,
       "verb": "do"

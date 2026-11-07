@@ -134,6 +134,30 @@
             font-weight: 600;
         }
 
+        #scoreUI {
+            top: 164px;
+            left: 18px;
+            min-width: 240px;
+        }
+        #scoreUI .score-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 18px;
+            margin-top: 5px;
+            font-size: 13px;
+            color: #aaa;
+        }
+        #scoreUI .score-value {
+            color: #eee;
+            font-weight: 700;
+        }
+        #trickScoreMessage {
+            min-height: 18px;
+            margin-top: 8px;
+            color: #4ade80;
+            font-weight: 700;
+        }
+
         #wheelUI {
             top: 18px;
             right: 18px;
@@ -270,6 +294,12 @@
             font: inherit;
         }
         #creditsModal { z-index: 500; }
+        #trickGuideModal { z-index: 501; }
+        #trickGuideModal .modal-content {
+            max-width: 560px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
         html[data-theme="light"] #taskMenu {
             background: rgba(235, 241, 247, 0.97);
             color: #19212a;
@@ -407,6 +437,14 @@
         <div id="dailyProgress">0 / 0</div>
     </div>
 
+    <div id="scoreUI" class="panel" aria-live="polite">
+        <div class="label" data-i18n="scoreTitle">TRICK SCORE</div>
+        <div class="score-row"><span data-i18n="bankedScoreLabel">Score</span><span id="bankedScore" class="score-value">0</span></div>
+        <div class="score-row"><span data-i18n="unbankedScoreLabel">Unbanked</span><span id="pendingScore" class="score-value">0</span></div>
+        <div class="score-row"><span data-i18n="multiplierLabel">Multiplier</span><span id="scoreMultiplier" class="score-value">x1</span></div>
+        <div id="trickScoreMessage"></div>
+    </div>
+
     <!-- Wheels -->
     <div id="wheelUI" class="panel">
         <div class="label" data-i18n="wheels">Wheels</div>
@@ -456,6 +494,16 @@
                         font-size:14px;
                         cursor:pointer;
                     " id="openBtn" data-i18n="credits">Credits</button>
+                    <button style="
+                        background:transparent;
+                        border:1px solid #444;
+                        color:inherit;
+                        height:36px;
+                        padding:0 12px;
+                        border-radius:8px;
+                        font-size:14px;
+                        cursor:pointer;
+                    " id="trickGuideButton" type="button" data-i18n="trickGuide">Trick Guide</button>
                 </nav>
 
                 <section class="menu-panel active" data-menu-panel="missions">
@@ -516,8 +564,22 @@
                         <p>
                             <span data-i18n="skateboardModel">Skateboard model</span> <span data-i18n="by">by</span> <a href="https://poly.pizza/u/Poly%20by%20Google">Poly by Google</a> [<a href="https://creativecommons.org/licenses/by/3.0/">CC-BY</a>] <span data-i18n="via">via</span> <a href="https://poly.pizza/m/cms3_9IcYbB">Poly Pizza</a>.<br><br>
                             <span data-i18n="starAsset">Star by</span> Quaternius.<br>
+                            <span data-i18n="trickComboCredit"></span><br>
                             <span data-i18n="creditsThanks">Thanks to</span> <a href="https://kenney.nl">Kenney</a>
                         </p>
+                    </div>
+                </div>
+                <div id="trickGuideModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="trickGuideTitle">
+                    <div class="modal-content">
+                        <span class="close" aria-label="Close trick guide" data-i18n-aria-label="trickGuideClose">&times;</span>
+                        <h1 id="trickGuideTitle" data-i18n="trickGuide">Trick Guide</h1>
+                        <p data-i18n="trickGuideIntro"></p>
+                        <ul>
+                            <li data-i18n="trickGuideBasic"></li>
+                            <li data-i18n="trickGuideShuvits"></li>
+                            <li data-i18n="trickGuideCombo"></li>
+                            <li data-i18n="trickGuideSpecial"></li>
+                        </ul>
                     </div>
                 </div>
             </div>

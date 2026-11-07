@@ -20,21 +20,19 @@ Open daarna [http://localhost:8000](http://localhost:8000) in je browser.
 
 | Toets / actie | Functie |
 | --- | --- |
-| WASD | Bewegen en sturen |
+| W/S/A/D of pijltjes | Bewegen en sturen |
 | Spatie | Pushen |
 | Shift ingedrukt houden | Crouchen |
 | W terwijl Shift ingedrukt is | Ollie |
 | Shift loslaten | Uncrouchen |
 | Q | Grinden |
 | Scrollwiel | Shuvit |
-| Twee keer scrollen | Varial shuvit |
-| Grote scrollbeweging | 360 shuvit |
-| Muisbeweging in de lucht | Tricks, waaronder 360 flips, varial flips, hardflips en inward heels |
 | V | Wielset wisselen |
 | T | Missie-, taken- en shopmenu openen/sluiten |
 | I | Instellingen openen/sluiten |
 
 Klik op de lichte-modusknop in **Instellingen** om tussen lichte en donkere modus te wisselen. De gekozen modus wordt lokaal opgeslagen.
+Open met **T** het menu en kies **Trickuitleg** naast **Credits** voor uitleg over flips en shuvits.
 
 ## 🛹 Menu's
 
@@ -44,20 +42,21 @@ Klik op de lichte-modusknop in **Instellingen** om tussen lichte en donkere modu
 - **Instellingen:** schakel de lichte modus in of uit.
 - **3D-boardpreview:** bekijk en draai het skateboardmodel met je huidige wielset.
 - **Taal:** kies in Instellingen uit Engels (standaard), Nederlands, Spaans, Duits of Frans. Je keuze wordt lokaal opgeslagen.
-- **Instellingenbestand:** pas besturing, physics, beweging, camera, tricks, Rush, wielprijzen, talen, vertalingen en taken aan in `settings.json`.
+- **Toetscombinaties:** `&&` betekent dat toetsen samen ingedrukt moeten zijn; `||` betekent dat een van de alternatieven volstaat. Een lijst met toetsen biedt alternatieven, zoals `["a", "arrowleft"]`.
 
 Voortgang, vrijgespeelde wielen en de gekozen wielset worden in de browser opgeslagen.
 
 ## 📁 Projectbestanden
 
 - `index.html` — gamepagina en interface.
-- `game.js` — Babylon.js-scene, besturing, missies, taken en shop.
-- `settings.json` — alle game-instellingen, talen, vertalingen en 200 taken.
-- `models/` — skateboard-, wiel- en mapmodellen, inclusief de KF- en HF-trickanimaties.
+- `game.js` — Babylon.js-scene, besturing, missies, taken en shop; tricks draaien het board via een visuele pivot, los van speleranimaties en Havok.
+- `settings.json` — interne gamegegevens, talen, vertalingen en 200 taken.
+- `models/` — skateboard-, wiel- en mapmodellen.
 
 ## 📢 Updates
 
-- **v0.5:** Alle instellingen, talen en taken samengebracht in `settings.json`; 160 extra taken, KF- en HF-animaties voor kickflips en heelflips, en nieuwe tricks zoals 360 flips, hardflips, inward heels, 360 shuvits en bigspins.
+- **v0.5:** Alle instellingen, talen en 200 taken samengebracht in `settings.json`; de basisinputs zijn kickflips, heelflips en BS/FS-shuvits van 180/360.
+- **Trick combos & score:** De Trick Guide toont alle zeven shuvit/flip-combinaties en de exacte Special Trick-reeks (BS 360 Shuvit + Kickflip + Heelflip). Combinaties moeten binnen het ingestelde venster; land om punten vast te zetten. Een bail verliest de ongebankte score en reset de multiplier.
 - **v0.4:**
     - Taalkeuze: Nederlands, English (standaard), Deutsch, Español en Français.
     - Aparte menu's voor missies, taken en de shop.
