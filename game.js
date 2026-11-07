@@ -95,7 +95,11 @@ let wheelMeshes = [];
 let boardAnimGroups = [];
 let idleAnim = null;
 let pushAnim = null;
+let ollieAnim = null;
+let crouchAnim = null;
+let uncrouchAnim = null;
 let currentBoardAnim = null;
+let currentBoardAnimEndObserver = null;
 let boardParts = null;
 let gameScene = null;
 let gameSkyMaterial = null;
@@ -105,14 +109,244 @@ let previewScene = null;
 let previewBoardRoot = null;
 let previewWheelMeshes = [];
 let isLightMode = localStorage.getItem("acidin_light_mode") === "true";
+const LANGUAGE_OPTIONS = ["en", "nl", "es", "de", "fr"];
+let currentLanguage = localStorage.getItem("acidin_language") || "en";
+if (!LANGUAGE_OPTIONS.includes(currentLanguage)) currentLanguage = "en";
 
-function playBoardAnim(name) {
-    if (!boardAnimGroups.length) return;
-    const anim = boardAnimGroups.find(a => a.name.toLowerCase().includes(name));
-    if (!anim || anim === currentBoardAnim) return;
-    if (currentBoardAnim) currentBoardAnim.stop();
-    anim.start(true); // loop
+const LANGUAGE_STRINGS = {
+    en: {
+        loading: "Loading...", boardPreview: "3D preview of your skateboard", loadingError: "Loading error",
+        daily: "Daily", wheels: "Wheels", wheelHint: "V = change",
+        currentSetup: "Current setup", skateMenu: "Skate menu", settings: "Settings",
+        closeMenu: "Close menu", menuCloseHint: "T = close menu", menuSections: "Menu sections",
+        missions: "Missions", tasks: "Tasks", shop: "Shop", credits: "Credits",
+        dailyMission: "DAILY MISSION", today: "TODAY", rush: "RUSH",
+        starCount: "Stars to collect", startRush: "Start Rush", noActiveRush: "No active rush",
+        tasksDescription: "Complete tricks and grinds to earn wheels.",
+        shopDescription: "Unlock and equip new wheel sets.", lightMode: "Light mode",
+        lightModeDescription: "Change the lighting and interface theme.", language: "Language",
+        keyboardShortcut: "Keyboard shortcut", on: "On", off: "Off",
+        skateboardModel: "Skateboard model", by: "by", via: "via", starAsset: "Star by",
+        creditsThanks: "Thanks to",
+        noTasks: "No tasks available.", equip: "Equip", equipped: "Equipped",
+        price: "{amount} wheels", dailyDone: "Completed",
+        noStars: "No stars found. Make sure map objects include 'objective_collective' in their name.",
+        taskDo: "Do {target} {type}", taskStart: "Start {target} {type}",
+        taskLand: "Land {target} {type}", taskAllround: "Do {target} all-around tricks",
+        taskCombo: "Do {target} grinds and {target} flips",
+        taskSpeedrun: "Start {target} grinds in a row",
+        taskAir: "Land {target} aerial tricks",
+        typeGrind: "grinds", typeTricks: "tricks", typeFlips: "flips", typeShuvit: "shuvits",
+        typeManual: "manuals", typeKickflip: "kickflips", typeHeelflip: "heelflips",
+        dailyKickflip: "Do {target} kickflips", dailyHeelflip: "Do {target} heelflips",
+        dailyGrind: "Start {target} grinds (Q)", dailyShuvit: "Do {target} shuvits",
+        dailyTricks: "Land {target} tricks", controlsHint: "WASD move · Space push · Shift+W ollie · Q grind · Scroll shuvit · Mouse tricks"
+    },
+    nl: {
+        loading: "Laden...", boardPreview: "3D-preview van je skateboard", loadingError: "Fout bij laden",
+        daily: "Dagelijks", wheels: "Wheels", wheelHint: "V = wisselen",
+        currentSetup: "Huidige setup", skateMenu: "Skatemenu", settings: "Instellingen",
+        closeMenu: "Menu sluiten", menuCloseHint: "T = menu sluiten", menuSections: "Menuonderdelen",
+        missions: "Missies", tasks: "Taken", shop: "Shop", credits: "Credits",
+        dailyMission: "DAGMISSIE", today: "VANDAAG", rush: "RUSH",
+        starCount: "Aantal sterren", startRush: "Start rush", noActiveRush: "Geen actieve rush",
+        tasksDescription: "Voltooi tricks en grinds om wheels te verdienen.",
+        shopDescription: "Ontgrendel en equip nieuwe wielsets.", lightMode: "Lichte modus",
+        lightModeDescription: "Verander de belichting en het thema.", language: "Taal",
+        keyboardShortcut: "Sneltoets", on: "Aan", off: "Uit",
+        skateboardModel: "Skateboardmodel", by: "van", via: "via", starAsset: "Ster van",
+        creditsThanks: "Met dank aan",
+        noTasks: "Geen taken beschikbaar.", equip: "Equip", equipped: "Actief",
+        price: "{amount} wheels", dailyDone: "Voltooid",
+        noStars: "Geen sterren gevonden. Zorg dat 'objective_collective' in de namen van mapobjecten staat.",
+        taskDo: "Doe {target} {type}", taskStart: "Start {target} {type}",
+        taskLand: "Land {target} {type}", taskAllround: "Doe {target} tricks van alles",
+        taskCombo: "Doe {target} grinds en {target} flips",
+        taskSpeedrun: "Start {target} grinds snel achter elkaar",
+        taskAir: "Land {target} airtricks",
+        typeGrind: "grinds", typeTricks: "tricks", typeFlips: "flips", typeShuvit: "shuvits",
+        typeManual: "manuals", typeKickflip: "kickflips", typeHeelflip: "heelflips",
+        dailyKickflip: "Doe {target} kickflips", dailyHeelflip: "Doe {target} heelflips",
+        dailyGrind: "Start {target} grinds (Q)", dailyShuvit: "Doe {target} shuvits",
+        dailyTricks: "Land {target} tricks", controlsHint: "WASD bewegen · Spatie push · Shift+W ollie · Q grind · Scroll shuvit · Muis tricks"
+    },
+    es: {
+        loading: "Cargando...", boardPreview: "Vista 3D de tu monopatín", loadingError: "Error al cargar",
+        daily: "Diaria", wheels: "Ruedas", wheelHint: "V = cambiar",
+        currentSetup: "Configuración actual", skateMenu: "Menú de skate", settings: "Ajustes",
+        closeMenu: "Cerrar menú", menuCloseHint: "T = cerrar menú", menuSections: "Secciones del menú",
+        missions: "Misiones", tasks: "Tareas", shop: "Tienda", credits: "Créditos",
+        dailyMission: "MISIÓN DIARIA", today: "HOY", rush: "RUSH",
+        starCount: "Estrellas para recoger", startRush: "Iniciar Rush", noActiveRush: "No hay un Rush activo",
+        tasksDescription: "Completa trucos y grinds para ganar ruedas.",
+        shopDescription: "Desbloquea y equipa nuevos juegos de ruedas.", lightMode: "Modo claro",
+        lightModeDescription: "Cambia la iluminación y el tema de la interfaz.", language: "Idioma",
+        keyboardShortcut: "Atajo de teclado", on: "Activado", off: "Desactivado",
+        skateboardModel: "Modelo de monopatín", by: "de", via: "vía", starAsset: "Estrella de",
+        creditsThanks: "Gracias a",
+        noTasks: "No hay tareas disponibles.", equip: "Equipar", equipped: "Equipadas",
+        price: "{amount} ruedas", dailyDone: "Completada",
+        noStars: "No se encontraron estrellas. Asegúrate de que los objetos del mapa incluyan 'objective_collective' en su nombre.",
+        taskDo: "Haz {target} {type}", taskStart: "Inicia {target} {type}",
+        taskLand: "Aterriza {target} {type}", taskAllround: "Haz {target} trucos variados",
+        taskCombo: "Haz {target} grinds y {target} flips",
+        taskSpeedrun: "Inicia {target} grinds seguidos",
+        taskAir: "Aterriza {target} trucos aéreos",
+        typeGrind: "grinds", typeTricks: "trucos", typeFlips: "flips", typeShuvit: "shuvits",
+        typeManual: "manuals", typeKickflip: "kickflips", typeHeelflip: "heelflips",
+        dailyKickflip: "Haz {target} kickflips", dailyHeelflip: "Haz {target} heelflips",
+        dailyGrind: "Inicia {target} grinds (Q)", dailyShuvit: "Haz {target} shuvits",
+        dailyTricks: "Aterriza {target} trucos", controlsHint: "WASD moverse · Espacio impulsarse · Shift+W ollie · Q grind · Rueda shuvit · Ratón trucos"
+    },
+    de: {
+        loading: "Laden...", boardPreview: "3D-Vorschau deines Skateboards", loadingError: "Ladefehler",
+        daily: "Täglich", wheels: "Räder", wheelHint: "V = wechseln",
+        currentSetup: "Aktuelles Setup", skateMenu: "Skate-Menü", settings: "Einstellungen",
+        closeMenu: "Menü schließen", menuCloseHint: "T = Menü schließen", menuSections: "Menübereiche",
+        missions: "Missionen", tasks: "Aufgaben", shop: "Shop", credits: "Credits",
+        dailyMission: "TAGESMISSION", today: "HEUTE", rush: "RUSH",
+        starCount: "Sterne sammeln", startRush: "Rush starten", noActiveRush: "Kein Rush aktiv",
+        tasksDescription: "Schließe Tricks und Grinds ab, um Räder zu verdienen.",
+        shopDescription: "Schalte neue Radsätze frei und rüste sie aus.", lightMode: "Heller Modus",
+        lightModeDescription: "Ändere Beleuchtung und Oberflächendesign.", language: "Sprache",
+        keyboardShortcut: "Tastenkürzel", on: "An", off: "Aus",
+        skateboardModel: "Skateboard-Modell", by: "von", via: "über", starAsset: "Stern von",
+        creditsThanks: "Vielen Dank an",
+        noTasks: "Keine Aufgaben verfügbar.", equip: "Ausrüsten", equipped: "Ausgerüstet",
+        price: "{amount} Räder", dailyDone: "Abgeschlossen",
+        noStars: "Keine Sterne gefunden. Der Name von Kartenobjekten muss 'objective_collective' enthalten.",
+        taskDo: "Mache {target} {type}", taskStart: "Starte {target} {type}",
+        taskLand: "Lande {target} {type}", taskAllround: "Mache {target} verschiedene Tricks",
+        taskCombo: "Mache {target} Grinds und {target} Flips",
+        taskSpeedrun: "Starte {target} Grinds hintereinander",
+        taskAir: "Lande {target} Lufttricks",
+        typeGrind: "Grinds", typeTricks: "Tricks", typeFlips: "Flips", typeShuvit: "Shuvits",
+        typeManual: "Manuals", typeKickflip: "Kickflips", typeHeelflip: "Heelflips",
+        dailyKickflip: "Mache {target} Kickflips", dailyHeelflip: "Mache {target} Heelflips",
+        dailyGrind: "Starte {target} Grinds (Q)", dailyShuvit: "Mache {target} Shuvits",
+        dailyTricks: "Lande {target} Tricks", controlsHint: "WASD bewegen · Leertaste anschieben · Shift+W Ollie · Q Grind · Scrollrad Shuvit · Maus Tricks"
+    },
+    fr: {
+        loading: "Chargement...", boardPreview: "Aperçu 3D de ton skateboard", loadingError: "Erreur de chargement",
+        daily: "Quotidien", wheels: "Roues", wheelHint: "V = changer",
+        currentSetup: "Configuration actuelle", skateMenu: "Menu skate", settings: "Paramètres",
+        closeMenu: "Fermer le menu", menuCloseHint: "T = fermer le menu", menuSections: "Sections du menu",
+        missions: "Missions", tasks: "Tâches", shop: "Boutique", credits: "Crédits",
+        dailyMission: "MISSION DU JOUR", today: "AUJOURD'HUI", rush: "RUSH",
+        starCount: "Étoiles à collecter", startRush: "Démarrer le Rush", noActiveRush: "Aucun Rush actif",
+        tasksDescription: "Réussis des figures et des grinds pour gagner des roues.",
+        shopDescription: "Débloque et équipe de nouveaux jeux de roues.", lightMode: "Mode clair",
+        lightModeDescription: "Modifie l'éclairage et le thème de l'interface.", language: "Langue",
+        keyboardShortcut: "Raccourci clavier", on: "Activé", off: "Désactivé",
+        skateboardModel: "Modèle de skateboard", by: "par", via: "via", starAsset: "Étoile par",
+        creditsThanks: "Merci à",
+        noTasks: "Aucune tâche disponible.", equip: "Équiper", equipped: "Équipées",
+        price: "{amount} roues", dailyDone: "Terminé",
+        noStars: "Aucune étoile trouvée. Le nom des objets de la carte doit contenir 'objective_collective'.",
+        taskDo: "Fais {target} {type}", taskStart: "Commence {target} {type}",
+        taskLand: "Réussis {target} {type}", taskAllround: "Fais {target} figures variées",
+        taskCombo: "Fais {target} grinds et {target} flips",
+        taskSpeedrun: "Commence {target} grinds à la suite",
+        taskAir: "Réussis {target} figures aériennes",
+        typeGrind: "grinds", typeTricks: "figures", typeFlips: "flips", typeShuvit: "shuvits",
+        typeManual: "manuals", typeKickflip: "kickflips", typeHeelflip: "heelflips",
+        dailyKickflip: "Fais {target} kickflips", dailyHeelflip: "Fais {target} heelflips",
+        dailyGrind: "Commence {target} grinds (Q)", dailyShuvit: "Fais {target} shuvits",
+        dailyTricks: "Réussis {target} figures", controlsHint: "WASD se déplacer · Espace pousser · Shift+W ollie · Q grind · Molette shuvit · Souris figures"
+    }
+};
+
+function translate(key, values = {}) {
+    const language = LANGUAGE_STRINGS[currentLanguage] || LANGUAGE_STRINGS.en;
+    const template = language[key] || LANGUAGE_STRINGS.en[key] || key;
+    return template.replace(/\{(\w+)\}/g, (_, name) => values[name] ?? "");
+}
+
+function getTaskLabel(task) {
+    if (task.id === "speedrun_grind") return translate("taskSpeedrun", { target: task.target });
+    if (task.id === "air_tricks") return translate("taskAir", { target: task.target });
+    if (task.id === "grind_flip") return translate("taskCombo", { target: task.target });
+    if (task.id && task.id.startsWith("allround")) return translate("taskAllround", { target: task.target });
+
+    const typeKey = {
+        grind: "typeGrind", tricks: "typeTricks", shuvit: "typeShuvit",
+        manual: "typeManual", kickflip: "typeKickflip", heelflip: "typeHeelflip"
+    }[task.type] || "typeTricks";
+    const translatedType = task.type === "tricks" && /\bflips\b/i.test(task.label)
+        ? translate("typeFlips")
+        : translate(typeKey);
+    const formatKey = task.label.startsWith("Start ") ? "taskStart"
+        : task.label.startsWith("Land ") ? "taskLand"
+            : "taskDo";
+    return translate(formatKey, { target: task.target, type: translatedType });
+}
+
+function getDailyChallengeLabel(challenge) {
+    const key = {
+        kickflip: "dailyKickflip", heelflip: "dailyHeelflip", grind: "dailyGrind",
+        shuvit: "dailyShuvit", tricks: "dailyTricks"
+    }[challenge.type];
+    return key ? translate(key, { target: challenge.target }) : challenge.label;
+}
+
+function playBoardAnim(name, loop = true, reverse = false, returnToIdle = true) {
+    if (!boardAnimGroups.length) return false;
+    const animationName = name.toLowerCase();
+    const anim = boardAnimGroups.find(a => a.name.toLowerCase() === animationName)
+        || boardAnimGroups.find(a => a.name.toLowerCase().includes(animationName));
+    if (!anim || (anim === currentBoardAnim && loop)) return Boolean(anim);
+
+    if (currentBoardAnimEndObserver && currentBoardAnim) {
+        currentBoardAnim.onAnimationGroupEndObservable.remove(currentBoardAnimEndObserver);
+        currentBoardAnimEndObserver = null;
+    }
+    boardAnimGroups.forEach(group => {
+        if (group !== anim) group.stop();
+    });
+    anim.stop();
     currentBoardAnim = anim;
+    if (!loop && returnToIdle && anim !== idleAnim && idleAnim) {
+        currentBoardAnimEndObserver = anim.onAnimationGroupEndObservable.addOnce(() => {
+            if (currentBoardAnim !== anim) return;
+            currentBoardAnimEndObserver = null;
+            playBoardAnim("idle");
+        });
+    }
+    if (reverse) {
+        anim.start(false, Math.abs(anim.speedRatio), anim.to, anim.from);
+    } else {
+        anim.play(loop);
+    }
+    return true;
+}
+
+function makeIdleMotionVisible(animationGroup) {
+    const torsoTrack = animationGroup.targetedAnimations.find(({ target, animation }) =>
+        target.name.toLowerCase() === "torso" && animation.targetProperty === "position"
+    );
+    if (!torsoTrack) {
+        console.warn("Idle-animatie heeft geen torso-positie om zichtbaar te versterken.");
+        return;
+    }
+
+    const keys = torsoTrack.animation.getKeys();
+    const yValues = keys
+        .filter(key => key.value instanceof BABYLON.Vector3)
+        .map(key => key.value.y);
+    if (yValues.length < 2) {
+        console.warn("Idle-torso-track heeft onvoldoende positie-keyframes.");
+        return;
+    }
+
+    const centerY = (Math.min(...yValues) + Math.max(...yValues)) / 2;
+    const motionScale = 3;
+    torsoTrack.animation.setKeys(keys.map(key => {
+        if (!(key.value instanceof BABYLON.Vector3)) return key;
+        const value = key.value.clone();
+        value.y = centerY + (value.y - centerY) * motionScale;
+        return { ...key, value };
+    }));
+    console.info(`Idle-torso-beweging versterkt (${motionScale}x) op de bestaande animatie.`);
 }
 
 async function loadWheelSet(name, parentNode, scene) {
@@ -293,10 +527,10 @@ function updateTaskUI() {
             const prog = taskProgress[task.id] || 0;
             const done = prog >= task.target;
             return `<div class="task-item">
-                <span>${task.label}</span>
+                <span>${getTaskLabel(task)}</span>
                 <span class="reward">${done ? "✓" : prog + "/" + task.target} · +${task.reward}</span>
             </div>`;
-        }).join("") || "<div style='color:#666;padding:10px 0;'>Geen taken meer...</div>";
+        }).join("") || `<div style="color:#666;padding:10px 0;">${translate("noTasks")}</div>`;
     }
 
     const shopList = document.getElementById("shopList");
@@ -317,10 +551,10 @@ function updateTaskUI() {
             const price = prices[name] || 20;
             const equipped = currentWheel === name;
             return `<div class="shop-item">
-                <span>${name}${equipped ? " (aan)" : ""}</span>
+                <span>${name.replaceAll("_", " ")}${equipped ? ` (${translate("equipped")})` : ""}</span>
                 ${owned
-                    ? `<button class="buy-btn owned" onclick="equipWheel('${name}')">Equip</button>`
-                    : `<button class="buy-btn" onclick="buyWheel('${name}', ${price})" ${wheelsCurrency < price ? "disabled" : ""}>${price} wheels</button>`
+                    ? `<button class="buy-btn owned" onclick="equipWheel('${name}')">${translate("equip")}</button>`
+                    : `<button class="buy-btn" onclick="buyWheel('${name}', ${price})" ${wheelsCurrency < price ? "disabled" : ""}>${translate("price", { amount: price })}</button>`
                 }
             </div>`;
         }).join("");
@@ -451,7 +685,7 @@ function applyLightMode() {
     document.documentElement.dataset.theme = isLightMode ? "light" : "dark";
     const button = document.getElementById("lightModeToggle");
     if (button) {
-        button.textContent = isLightMode ? "Aan" : "Uit";
+        button.textContent = isLightMode ? translate("on") : translate("off");
         button.setAttribute("aria-pressed", String(isLightMode));
     }
     if (gameScene) {
@@ -517,7 +751,7 @@ function startRush(count) {
     }
     if (collectiveObjects.length === 0) {
         console.warn("Geen objective_collective meshes gevonden in de map!");
-        alert("Geen sterren gevonden. Zorg dat objecten in de map 'objective_collective' in de naam hebben.");
+        alert(translate("noStars"));
         return;
     }
     const available = [...collectiveObjects];
@@ -560,7 +794,7 @@ function updateRushUI() {
     const el = document.getElementById("rushStatus");
     if (!el) return;
     if (!rushActive) {
-        el.textContent = "Geen actieve rush";
+        el.textContent = translate("noActiveRush");
         el.style.color = "#888";
         return;
     }
@@ -688,14 +922,15 @@ function updateDailyUI() {
     const progEl = document.getElementById('dailyProgress');
     if (!labelEl || !progEl || !dailyChallenge) return;
 
-    labelEl.textContent = dailyChallenge.label;
+    const challengeLabel = getDailyChallengeLabel(dailyChallenge);
     const menuLabelEl = document.getElementById('dailyMenuLabel');
     const menuProgressEl = document.getElementById('dailyMenuProgress');
-    if (menuLabelEl) menuLabelEl.textContent = dailyChallenge.label;
+    labelEl.textContent = challengeLabel;
+    if (menuLabelEl) menuLabelEl.textContent = challengeLabel;
     if (dailyCompleted) {
-        progEl.textContent = 'Voltooid';
+        progEl.textContent = translate("dailyDone");
         progEl.classList.add('done');
-        if (menuProgressEl) menuProgressEl.textContent = 'Voltooid';
+        if (menuProgressEl) menuProgressEl.textContent = translate("dailyDone");
     } else {
         progEl.textContent = `${dailyProgress} / ${dailyChallenge.target}`;
         progEl.classList.remove('done');
@@ -734,17 +969,10 @@ window.new_daily = function (forceType) {
 
     if (forceType) {
         const targets = { kickflip: 3, heelflip: 3, grind: 4, shuvit: 3, tricks: 6 };
-        const labels = {
-            kickflip: `Doe ${targets.kickflip} kickflips`,
-            heelflip: `Doe ${targets.heelflip} heelflips`,
-            grind: `Start ${targets.grind} grinds (Q)`,
-            shuvit: `Doe ${targets.shuvit} shuvits`,
-            tricks: `Land ${targets.tricks} tricks`
-        };
         dailyChallenge = {
             type: forceType,
             target: targets[forceType] || 3,
-            label: labels[forceType] || forceType,
+            label: forceType,
             dateKey
         };
         dailyProgress = 0;
@@ -756,6 +984,39 @@ window.new_daily = function (forceType) {
     updateDailyUI();
     console.log('Daily geforceerd:', dailyChallenge);
 };
+
+function applyLanguage() {
+    document.documentElement.lang = currentLanguage;
+    document.querySelectorAll("[data-i18n]").forEach(element => {
+        element.textContent = translate(element.dataset.i18n);
+    });
+    document.querySelectorAll("[data-i18n-aria-label]").forEach(element => {
+        element.setAttribute("aria-label", translate(element.dataset.i18nAriaLabel));
+    });
+
+    const languageSelect = document.getElementById("languageSelect");
+    if (languageSelect) languageSelect.value = currentLanguage;
+
+    const wheelHint = document.getElementById("wheelHint");
+    if (wheelHint) wheelHint.textContent = translate("wheelHint");
+    const controlsHint = document.querySelector("#controlsHint [data-i18n='controlsHint']");
+    if (controlsHint) controlsHint.textContent = translate("controlsHint");
+    applyLightMode();
+    updateDailyUI();
+    updateRushUI();
+    updateTaskUI();
+}
+
+const languageSelect = document.getElementById("languageSelect");
+if (languageSelect) {
+    languageSelect.addEventListener("change", () => {
+        if (!LANGUAGE_OPTIONS.includes(languageSelect.value)) return;
+        currentLanguage = languageSelect.value;
+        localStorage.setItem("acidin_language", currentLanguage);
+        applyLanguage();
+    });
+}
+applyLanguage();
 
 async function createGame() {
     const scene = new BABYLON.Scene(engine);
@@ -983,7 +1244,12 @@ async function createGame() {
 
         // Animaties ophalen
         boardAnimGroups = result.animationGroups || [];
-        console.log("Board animaties gevonden:", boardAnimGroups.map(a => a.name));
+        console.table(boardAnimGroups.map(animation => ({
+            naam: animation.name,
+            begin: animation.from,
+            einde: animation.to,
+            targets: animation.targetedAnimations.length
+        })));
 
         idleAnim = boardAnimGroups.find(a => {
             const n = a.name.toLowerCase();
@@ -993,34 +1259,24 @@ async function createGame() {
             const n = a.name.toLowerCase();
             return n.includes("push");
         });
+        ollieAnim = boardAnimGroups.find(a => a.name.toLowerCase().includes("ollie"));
+        crouchAnim = boardAnimGroups.find(a => a.name.toLowerCase() === "crouch");
+        uncrouchAnim = boardAnimGroups.find(a => a.name.toLowerCase() === "uncrouch");
+        if (!crouchAnim && uncrouchAnim) {
+            console.info(`Crouch gebruikt de omgekeerde "${uncrouchAnim.name}"-animatie.`);
+        }
+        if (ollieAnim) {
+            ollieAnim.speedRatio = 2;
+            console.info(`Ollie-animatie geladen: "${ollieAnim.name}"`);
+        } else {
+            console.warn("Ollie-animatie niet gevonden in het geladen skateboardmodel.", {
+                gevonden: boardAnimGroups.map(animation => animation.name)
+            });
+        }
 
         // Stop alle animaties eerst
         boardAnimGroups.forEach(a => a.stop());
-
-        if (idleAnim) {
-            console.log("Idle starten:", idleAnim.name, "| targets:", idleAnim.targetedAnimations.length);
-            // 1. Stop alles
-            boardAnimGroups.forEach(a => a.stop());
-            // 2. Zorg dat targets enabled en visible zijn
-            idleAnim.targetedAnimations.forEach(ta => {
-                if (ta.target) {
-                    ta.target.setEnabled(true);
-                    if (ta.target.isVisible === false) ta.target.isVisible = true;
-                }
-            });
-            // 3. Weight en speed
-            idleAnim.setWeightForAllAnimatables(1);
-            idleAnim.speedRatio = 1;
-            // 4. Play looping
-            idleAnim.play(true);
-            currentBoardAnim = idleAnim;
-            // 5. Nog een keer na parenten
-            setTimeout(() => {
-                if (currentBoardAnim === idleAnim) idleAnim.play(true);
-            }, 200);
-        } else {
-            console.warn("Geen idle animatie gevonden!");
-        }
+        currentBoardAnim = null;
         function findByName(name) { return scene.getNodeByName(name); }
         boardParts.deck = findByName("Deck") || findByName("Skateboard_1");
         boardParts.frontTruck = findByName("FrontTruck");
@@ -1056,6 +1312,21 @@ async function createGame() {
         // Laad gekozen wiel-set (vervangt de standaard wielen visueel)
         await loadWheelSet(currentWheel, skateboard, scene);
 
+        if (idleAnim) {
+            makeIdleMotionVisible(idleAnim);
+            idleAnim.targetedAnimations.forEach(({ target }) => {
+                if (!target) return;
+                target.setEnabled(true);
+                if (target.isVisible === false) target.isVisible = true;
+            });
+            idleAnim.setWeightForAllAnimatables(1);
+            idleAnim.speedRatio = 1;
+            playBoardAnim("idle");
+            console.info("Idle gestart na board-setup:", idleAnim.name);
+        } else {
+            console.warn("Geen idle animatie gevonden!");
+        }
+
     } catch (err) {
         console.error("Failed to load models/skateboard.glb:", err);
         physicsMesh.isVisible = true;
@@ -1069,8 +1340,19 @@ async function createGame() {
     scene.onKeyboardObservable.add((kbInfo) => {
         const key = kbInfo.event.key.toLowerCase();
         if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYDOWN) {
+            const wasAlreadyDown = inputMap[key] === true;
             inputMap[key] = true;
 let lastPushAnimTime = 0;
+
+            if (key === "shift" && !wasAlreadyDown) {
+                if (crouchAnim) {
+                    playBoardAnim("crouch", false, false, false);
+                } else if (uncrouchAnim) {
+                    playBoardAnim("uncrouch", false, true, false);
+                } else {
+                    console.warn("Geen crouch- of uncrouch-animatie gevonden in het skateboardmodel.");
+                }
+            }
 
             if (key === " " || key === "spacebar") {
                 const now = performance.now();
@@ -1080,21 +1362,7 @@ let lastPushAnimTime = 0;
                 const oldSpeed = speed;
                 speed = Math.min(speed + pushpower, maxSpeed);
 
-                if (pushAnim && speed > oldSpeed) {
-                    if (currentBoardAnim && currentBoardAnim !== pushAnim) {
-                        currentBoardAnim.stop();
-                    }
-                    pushAnim.stop();
-                    pushAnim.play(false);
-                    currentBoardAnim = pushAnim;
-                    setTimeout(() => {
-                        if (idleAnim && currentBoardAnim === pushAnim) {
-                            pushAnim.stop();
-                            idleAnim.play(true);
-                            currentBoardAnim = idleAnim;
-                        }
-                    }, 650);
-                }
+                if (pushAnim && speed > oldSpeed) playBoardAnim("push", false);
             }
             if (key === "v") {
                 // Wissel wiel-set
@@ -1148,7 +1416,7 @@ let lastPushAnimTime = 0;
                     console.log("Geen grindable_line geraakt door de cylinder.");
                 }
             }
-            if ((key === "w" && inputMap["shift"]) || (key === "shift" && inputMap["w"])) {
+            if (key === "w" && inputMap["shift"]) {
                 if (isGrinding) {
                     isGrinding = false;
                     currentGrindMesh = null;
@@ -1158,10 +1426,15 @@ let lastPushAnimTime = 0;
                 boardPhysics.body.applyImpulse(impulseVector, physicsMesh.absolutePosition);
                 if (ollieTimer <= 0) {
                     ollieTimer = OLLIE_DURATION;
+                    if (ollieAnim) playBoardAnim("ollie", false);
                 }
             }
         } else if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYUP) {
+            const wasAlreadyDown = inputMap[key] === true;
             inputMap[key] = false;
+            if (key === "shift" && wasAlreadyDown && uncrouchAnim) {
+                playBoardAnim("uncrouch", false);
+            }
             if (key === " " || key === "spacebar") {
                 inputMap["spacebar"] = false;
             }
@@ -1516,7 +1789,7 @@ createGame().then((scene) => {
         el.classList.remove("hidden");
         el.innerHTML = `
             <div style="text-align:center;color:#f87171;font-family:system-ui;">
-                <h2>Fout bij laden</h2>
+                <h2>${translate("loadingError")}</h2>
                 <p>${error.message || error}</p>
             </div>`;
     }
