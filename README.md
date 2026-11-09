@@ -4,7 +4,9 @@ Acidin is een browser-skategame gebouwd met Babylon.js. Leer skaten via levels, 
 
 ## 🎮 Spelen
 
-Speel de game op [recap.nu](https://recap.nu).
+*Just remember, the text is recapped*
+
+bekijk de website op [recap.nu](https://recap.nu).
 
 Om lokaal te spelen, serveer je de projectmap via een lokale webserver. De game laadt modellen en instellingen op basis van relatieve paden; open `index.html` daarom niet rechtstreeks als `file://`-bestand.
 
