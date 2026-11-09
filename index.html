@@ -106,12 +106,12 @@
             box-shadow: 0 8px 32px rgba(0,0,0,0.35);
         }
 
-        #dailyUI {
+        #levelHUD {
             top: 18px;
             left: 18px;
             min-width: 240px;
         }
-        #dailyUI .label {
+        #levelHUD .label {
             font-size: 11px;
             font-weight: 700;
             letter-spacing: 1.2px;
@@ -119,17 +119,17 @@
             color: #4ade80;
             margin-bottom: 6px;
         }
-        #dailyLabel {
+        #levelHUDName {
             font-size: 15px;
             font-weight: 500;
             line-height: 1.3;
         }
-        #dailyProgress {
+        #levelHUDProgress {
             margin-top: 8px;
             font-size: 13px;
             color: #999;
         }
-        #dailyProgress.done {
+        #levelHUDProgress.done {
             color: #4ade80;
             font-weight: 600;
         }
@@ -139,6 +139,22 @@
             left: 18px;
             min-width: 240px;
         }
+        #bailOverlay {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            z-index: 200;
+            transform: translate(-50%, -50%);
+            padding: 14px 20px;
+            border: 1px solid rgba(255,255,255,0.18);
+            border-radius: 12px;
+            background: rgba(8,10,14,0.86);
+            color: #fff;
+            font-weight: 700;
+            text-align: center;
+            pointer-events: none;
+        }
+        #bailOverlay[hidden] { display: none; }
         #scoreUI .score-row {
             display: flex;
             justify-content: space-between;
@@ -157,6 +173,20 @@
             color: #4ade80;
             font-weight: 700;
         }
+        #specialFlips {
+            margin-top: 8px;
+            padding-top: 7px;
+            border-top: 1px solid rgba(255,255,255,0.12);
+            font-size: 11px;
+            line-height: 1.4;
+            color: #aab2bd;
+        }
+        #specialFlips ul {
+            margin: 4px 0 0;
+            padding-left: 16px;
+        }
+        #specialFlips li { margin-top: 2px; }
+        html[data-theme="light"] #specialFlips { border-color: rgba(0,0,0,0.12); color: #526170; }
 
         #wheelUI {
             top: 18px;
@@ -300,6 +330,56 @@
             max-height: 80vh;
             overflow-y: auto;
         }
+        #onboarding {
+            position: fixed;
+            inset: 0;
+            z-index: 700;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(0,0,0,0.72);
+        }
+        #onboarding.open { display: flex; }
+        #onboarding .onboarding-card {
+            width: min(100%, 440px);
+            max-height: calc(90vh - 56px);
+            overflow-y: auto;
+            padding: 28px;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 16px;
+            background: #10141b;
+            color: #eee;
+            box-shadow: 0 20px 70px rgba(0,0,0,0.45);
+        }
+        #onboarding h1 { margin: 0 0 12px; }
+        #onboarding p { color: #aab2bd; line-height: 1.5; }
+        #onboardingStepTutorial p { margin: 8px 0; }
+        #onboarding input {
+            box-sizing: border-box;
+            width: 100%;
+            margin: 8px 0 14px;
+            padding: 12px;
+            border: 1px solid #444;
+            border-radius: 8px;
+            background: #090b0f;
+            color: inherit;
+            font: inherit;
+        }
+        .onboarding-languages { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+        .onboarding-language, .onboarding-button {
+            padding: 9px 13px;
+            border: 1px solid #444;
+            border-radius: 8px;
+            background: transparent;
+            color: inherit;
+            font: inherit;
+            cursor: pointer;
+        }
+        .onboarding-language.active { border-color: #4ade80; color: #4ade80; }
+        .onboarding-actions { display: flex; justify-content: space-between; gap: 12px; margin-top: 18px; }
+        .onboarding-button.primary { border-color: #4ade80; background: #4ade80; color: #0a0c10; font-weight: 700; }
+        #onboardingError { min-height: 20px; color: #f87171; font-size: 13px; }
         html[data-theme="light"] #taskMenu {
             background: rgba(235, 241, 247, 0.97);
             color: #19212a;
@@ -410,7 +490,7 @@
             border-color: rgba(0,0,0,0.1);
             color: #19212a;
         }
-        html[data-theme="light"] #dailyProgress,
+        html[data-theme="light"] #levelHUDProgress,
         html[data-theme="light"] #wheelHint,
         html[data-theme="light"] #controlsHint { color: #526170; }
         @media (max-width: 760px) {
@@ -427,14 +507,14 @@
         <div class="loading-title">AcidiN</div>
         <div class="loading-sub" data-i18n="loading">Loading...</div>
     </div>
+    <a id="backToParkEditor" href="MAP/index.html" hidden style="position:fixed;top:14px;left:14px;z-index:110;padding:10px 14px;border:1px solid rgba(255,255,255,.2);border-radius:10px;background:rgba(15,20,17,.88);color:#fff;text-decoration:none;font:600 13px system-ui">Back to MakeAPark</a>
 
     <canvas id="renderCanvas"></canvas>
 
-    <!-- Daily -->
-    <div id="dailyUI" class="panel">
-        <div class="label" data-i18n="daily">Daily</div>
-        <div id="dailyLabel" data-i18n="loading">Loading...</div>
-        <div id="dailyProgress">0 / 0</div>
+    <div id="levelHUD" class="panel">
+        <div class="label" data-i18n="levels">Levels</div>
+        <div id="levelHUDName" data-i18n="loading">Loading...</div>
+        <div id="levelHUDProgress">0 / 0</div>
     </div>
 
     <div id="scoreUI" class="panel" aria-live="polite">
@@ -443,6 +523,13 @@
         <div class="score-row"><span data-i18n="unbankedScoreLabel">Unbanked</span><span id="pendingScore" class="score-value">0</span></div>
         <div class="score-row"><span data-i18n="multiplierLabel">Multiplier</span><span id="scoreMultiplier" class="score-value">x1</span></div>
         <div id="trickScoreMessage"></div>
+        <div id="specialFlips">
+            <strong data-i18n="specialFlipsTitle">Special Flips</strong>
+            <ul id="specialFlipsList"></ul>
+        </div>
+    </div>
+    <div id="bailOverlay" role="status" data-i18n="ragdollGetUp" hidden>
+        Press any key or mouse button to get up.
     </div>
 
     <!-- Wheels -->
@@ -452,7 +539,7 @@
         <div id="wheelHint" data-i18n="wheelHint">V = change</div>
     </div>
 
-    <!-- Missies, taken, shop en instellingen -->
+    <!-- Levels, shop en instellingen -->
     <div id="taskMenu">
         <div class="task-layout">
             <div class="task-preview">
@@ -477,10 +564,9 @@
                     " aria-label="Close menu" data-i18n-aria-label="closeMenu">✕</button>
                     </div>
                 </div>
-                <div class="sub"><span id="walletPrefix" data-i18n="wheels">Wheels</span>: <span id="wheelsCount">0</span> · <span data-i18n="menuCloseHint">T = close menu</span></div>
+                <div class="sub"><span id="walletPrefix" data-i18n="wheels">Wheels</span>: <span id="wheelsCount">0</span> · <span data-i18n="menuCloseHint">L = levels · T = shop · I = settings</span></div>
                 <nav class="menu-nav" aria-label="Menu sections" data-i18n-aria-label="menuSections">
-                    <button class="menu-tab active" data-menu-tab="missions" onclick="showMenuTab('missions')" data-i18n="missions">Missions</button>
-                    <button class="menu-tab" data-menu-tab="tasks" onclick="showMenuTab('tasks')" data-i18n="tasks">Tasks</button>
+                    <button class="menu-tab active" data-menu-tab="levels" onclick="showMenuTab('levels')" data-i18n="levels">Levels</button>
                     <button class="menu-tab" data-menu-tab="shop" onclick="showMenuTab('shop')" data-i18n="shop">Shop</button>
                     <button class="menu-tab" data-menu-tab="settings" onclick="showMenuTab('settings')" data-i18n="settings">Settings</button>
                     <button style="
@@ -506,27 +592,10 @@
                     " id="trickGuideButton" type="button" data-i18n="trickGuide">Trick Guide</button>
                 </nav>
 
-                <section class="menu-panel active" data-menu-panel="missions">
-                    <h2 data-i18n="missions">Missions</h2>
-                    <div class="section-title" data-i18n="dailyMission">DAILY MISSION</div>
-                    <div class="panel" style="position:static; margin-bottom:18px;">
-                        <div class="label" style="color:#4ade80; font-size:11px;" data-i18n="today">TODAY</div>
-                        <div id="dailyMenuLabel" data-i18n="loading">Loading...</div>
-                        <div id="dailyMenuProgress" style="margin-top:8px; color:#888;">0 / 0</div>
-                    </div>
-                    <div class="section-title" data-i18n="rush">RUSH</div>
-                    <div style="margin-bottom: 12px;">
-                        <label style="font-size:13px; color:#aaa;"><span data-i18n="starCount">Stars to collect</span>: <span id="rushCountLabel">5</span></label>
-                        <input type="range" id="rushSlider" min="3" max="20" value="5" style="width:100%; margin-top:6px;" oninput="document.getElementById('rushCountLabel').textContent=this.value">
-                    </div>
-                    <button id="rushStartBtn" class="buy-btn" onclick="startRushFromUI()" style="width:100%; padding:10px;" data-i18n="startRush">Start Rush</button>
-                    <div id="rushStatus" style="margin-top:10px; font-size:14px; color:#888;" data-i18n="noActiveRush">No active rush</div>
-                </section>
-
-                <section class="menu-panel" data-menu-panel="tasks">
-                    <h2 data-i18n="tasks">Tasks</h2>
-                    <p class="sub" data-i18n="tasksDescription">Complete tricks and grinds to earn wheels.</p>
-                    <div id="taskList"></div>
+                <section class="menu-panel active" data-menu-panel="levels">
+                    <h2 data-i18n="levels">Levels</h2>
+                    <p class="sub" data-i18n="levelProgress">Level progress</p>
+                    <div id="levelList"></div>
                 </section>
 
                 <section class="menu-panel" data-menu-panel="shop">
@@ -542,6 +611,7 @@
                             <strong data-i18n="lightMode">Light mode</strong>
                             <div class="sub" style="margin:6px 0 0;" data-i18n="lightModeDescription">Change the lighting and interface theme.</div>
                         </div>
+
                         <button id="lightModeToggle" class="menu-action" type="button" aria-pressed="false" onclick="toggleLightMode()">Off</button>
                     </div>
                     <div class="settings-row">
@@ -553,6 +623,9 @@
                             <option value="de">Deutsch</option>
                             <option value="fr">Français</option>
                         </select>
+                    </div>
+                    <div class="settings-row">
+                        <a class="menu-action" href="MAP/index.html" target="_blank" rel="noopener noreferrer" data-i18n="buildSkatepark">Build a skatepark</a>
                     </div>
                     <p class="sub" style="margin-top:16px;"><span data-i18n="keyboardShortcut">Keyboard shortcut</span>: I</p>
                 </section>
@@ -582,6 +655,37 @@
                         </ul>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="onboarding" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
+        <div class="onboarding-card">
+            <h1 id="onboardingTitle" data-i18n="welcomeTitle">Welcome to Acidin!</h1>
+            <div id="onboardingStepUsername">
+                <p data-i18n="usernamePrompt">Choose your username. It will float above your skater.</p>
+                <input id="usernameInput" maxlength="24" autocomplete="nickname" data-i18n-placeholder="usernamePlaceholder" placeholder="Your username">
+                <div id="onboardingError" aria-live="polite"></div>
+            </div>
+            <div id="onboardingStepLanguage" hidden>
+                <p data-i18n="languagePrompt">Choose your language:</p>
+                <div id="onboardingLanguages" class="onboarding-languages"></div>
+            </div>
+            <div id="onboardingStepTutorial" hidden>
+                <p data-i18n="tutorialPrompt">Basic controls:</p>
+                <div id="tutorialControls">
+                    <p data-i18n="tutorialMovement">Move with W / Up, S / Down, A / Left, and D / Right.</p>
+                    <p data-i18n="tutorialPush">Push: press Space three times.</p>
+                    <p data-i18n="tutorialOllie">Ollie: hold Shift + W.</p>
+                    <p data-i18n="tutorialFlips">Click the game to capture the mouse. While airborne, flick right for a Kickflip or left for a Heelflip.</p>
+                    <p data-i18n="tutorialShuvit">Scroll down for a BS Shuvit or up for an FS Shuvit. Scroll farther for a 360.</p>
+                    <p data-i18n="tutorialGrinds">Near a rail, press Q for a 50-50 or E + Q for a Boardslide. Press E in the air for an Impossible.</p>
+                    <p data-i18n="tutorialMenus">L opens Levels, T opens the Shop, and I opens Settings. Find trick combinations in the Trick Guide.</p>
+                </div>
+            </div>
+            <div class="onboarding-actions">
+                <button id="skipTutorialButton" class="onboarding-button" type="button" data-i18n="skipTutorial">Skip tutorial</button>
+                <button id="onboardingNextButton" class="onboarding-button primary" type="button" data-i18n="next">Next</button>
             </div>
         </div>
     </div>

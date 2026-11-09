@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#111712">
+    <title>MakeAPark | Acidin</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #111712;
+            --panel: rgba(25, 33, 27, 0.94);
+            --panel-soft: rgba(34, 43, 36, 0.94);
+            --line: rgba(224, 240, 223, 0.12);
+            --text: #f2f5ee;
+            --muted: #a4afa2;
+            --green: #a5e776;
+            --green-dark: #4a743b;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            background: var(--bg);
+            color: var(--text);
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        button { font: inherit; }
+
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            outline: none;
+            touch-action: none;
+        }
+
+        .topbar {
+            position: fixed;
+            inset: 0 0 auto;
+            z-index: 4;
+            height: 76px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            padding: 0 24px;
+            background: linear-gradient(180deg, rgba(13, 18, 14, 0.94), rgba(13, 18, 14, 0.65));
+            border-bottom: 1px solid var(--line);
+            pointer-events: none;
+        }
+
+        .brand, .top-actions { display: flex; align-items: center; gap: 12px; pointer-events: auto; }
+        .brand-mark {
+            width: 42px;
+            height: 42px;
+            display: grid;
+            place-items: center;
+            border-radius: 13px;
+            background: var(--green);
+            color: #172213;
+            font-size: 19px;
+            font-weight: 900;
+            transform: rotate(-5deg);
+        }
+        .brand h1 { margin: 0; font-size: 19px; letter-spacing: -0.5px; }
+        .brand p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+
+        .button {
+            min-height: 40px;
+            padding: 0 14px;
+            border: 1px solid var(--line);
+            border-radius: 11px;
+            background: var(--panel-soft);
+            color: var(--text);
+            cursor: pointer;
+            transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+        }
+        .button:hover { transform: translateY(-1px); border-color: rgba(165, 231, 118, 0.65); }
+        .button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+        .button.primary { border-color: transparent; background: var(--green); color: #182415; font-weight: 750; }
+        .button.icon { min-width: 40px; padding: 0 10px; }
+        .top-actions { max-width: 78vw; overflow-x: auto; scrollbar-width: thin; }
+        #parksDialog {
+            width: min(620px, calc(100vw - 28px));
+            max-height: min(80vh, 720px);
+            padding: 0;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: var(--panel);
+            color: var(--text);
+            box-shadow: 0 18px 55px rgba(0, 0, 0, 0.5);
+        }
+        #parksDialog::backdrop { background: rgba(0, 0, 0, 0.65); backdrop-filter: blur(4px); }
+        .dialog-content { padding: 20px; }
+        .dialog-content h2 { margin: 0 0 6px; font-size: 19px; }
+        .dialog-content p { margin: 0 0 16px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+        .save-row, .share-row { display: flex; gap: 8px; margin: 12px 0; }
+        .save-row input, .share-row input {
+            flex: 1;
+            min-width: 0;
+            min-height: 40px;
+            padding: 0 11px;
+            border: 1px solid var(--line);
+            border-radius: 9px;
+            background: rgba(255,255,255,0.06);
+            color: var(--text);
+        }
+        #savedParksList { display: grid; gap: 8px; max-height: 38vh; overflow-y: auto; margin: 14px 0; }
+        .park-entry { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; }
+        .park-entry-info { min-width: 0; }
+        .park-entry-info strong, .park-entry-info span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .park-entry-info strong { font-size: 13px; }
+        .park-entry-info span { margin-top: 3px; color: var(--muted); font-size: 10px; }
+        .park-entry-actions { display: flex; flex: 0 0 auto; gap: 5px; }
+        .park-entry-actions .button { min-height: 32px; padding: 0 9px; font-size: 11px; }
+        #parksDialog .dialog-footer { display: flex; justify-content: flex-end; }
+        #parkManagerMessage { min-height: 16px; margin: 6px 0; color: var(--muted); font-size: 11px; }
+
+        #selectedPanel {
+            position: fixed;
+            z-index: 2;
+            top: 94px;
+            left: 20px;
+            width: 238px;
+            padding: 15px;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: var(--panel);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+            backdrop-filter: blur(14px);
+        }
+        .eyebrow { color: var(--green); font-size: 10px; font-weight: 800; letter-spacing: 1.3px; text-transform: uppercase; }
+        #selectedName { min-height: 22px; margin: 7px 0 13px; font-size: 14px; font-weight: 700; }
+        .transform-tools, .orientation-tools { display: grid; gap: 5px; margin-bottom: 10px; }
+        .transform-tools { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .orientation-tools { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .tool-button {
+            min-width: 0;
+            min-height: 32px;
+            padding: 0 5px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: rgba(255,255,255,0.045);
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .tool-button[aria-pressed="true"] { border-color: rgba(165, 231, 118, 0.45); background: rgba(165, 231, 118, 0.13); color: var(--green); }
+        .selection-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .selection-actions .button { min-height: 36px; padding: 0 8px; font-size: 12px; }
+        #snapButton, #deleteButton { grid-column: 1 / -1; }
+        #snapButton[aria-pressed="true"] { border-color: rgba(165, 231, 118, 0.55); background: rgba(165, 231, 118, 0.12); color: var(--green); }
+        #deleteButton { color: #ffaaa0; }
+
+        #piecePicker {
+            position: fixed;
+            z-index: 3;
+            right: 20px;
+            bottom: 20px;
+            width: min(390px, calc(100vw - 40px));
+            max-height: min(440px, calc(100vh - 120px));
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: var(--panel);
+            box-shadow: 0 18px 55px rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(16px);
+        }
+        .picker-heading { padding: 16px 16px 12px; }
+        .picker-heading h2 { margin: 5px 0 0; font-size: 16px; }
+        .picker-heading p { margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+        .category-list {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 5px;
+            padding: 0 12px 12px;
+        }
+        .category-button {
+            min-width: 0;
+            min-height: 34px;
+            padding: 0 5px;
+            border: 1px solid transparent;
+            border-radius: 9px;
+            background: rgba(255, 255, 255, 0.055);
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .category-button.active { border-color: rgba(165, 231, 118, 0.35); background: rgba(165, 231, 118, 0.14); color: var(--green); }
+        #assetList {
+            min-height: 90px;
+            overflow: auto;
+            padding: 0 12px 12px;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 7px;
+            scrollbar-color: #596752 transparent;
+        }
+        .asset-card {
+            min-height: 47px;
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            padding: 8px 9px;
+            border: 1px solid var(--line);
+            border-radius: 11px;
+            background: rgba(255, 255, 255, 0.035);
+            text-align: left;
+            color: var(--text);
+            cursor: grab;
+        }
+        .asset-card:hover { border-color: rgba(165, 231, 118, 0.55); background: rgba(165, 231, 118, 0.08); }
+        .asset-card:active { cursor: grabbing; }
+        .asset-icon { flex: 0 0 25px; width: 25px; height: 25px; display: grid; place-items: center; border-radius: 8px; background: rgba(165, 231, 118, 0.12); color: var(--green); font-size: 14px; }
+        .asset-name { overflow: hidden; font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+
+        #statusMessage {
+            position: fixed;
+            z-index: 2;
+            left: 50%;
+            bottom: 22px;
+            max-width: min(420px, calc(100vw - 40px));
+            padding: 10px 14px;
+            transform: translateX(-50%);
+            border: 1px solid var(--line);
+            border-radius: 11px;
+            background: rgba(20, 27, 22, 0.92);
+            color: var(--muted);
+            font-size: 12px;
+            text-align: center;
+            pointer-events: none;
+        }
+        #statusMessage.error { border-color: rgba(255, 133, 119, 0.45); color: #ffaaa0; }
+        #fileInput { display: none; }
+        .drop-hint {
+            position: fixed;
+            z-index: 1;
+            top: 50%;
+            left: 50%;
+            padding: 12px 16px;
+            transform: translate(-50%, -50%);
+            border: 1px solid rgba(165, 231, 118, 0.55);
+            border-radius: 14px;
+            background: rgba(20, 31, 21, 0.9);
+            color: var(--green);
+            font-size: 13px;
+            font-weight: 700;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 100ms ease;
+        }
+        .drop-hint.visible { opacity: 1; }
+
+        @media (max-width: 650px) {
+            .topbar { height: 66px; padding: 0 12px; gap: 8px; }
+            .brand { gap: 8px; }
+            .brand-mark { width: 36px; height: 36px; }
+            .brand h1 { font-size: 16px; }
+            .brand p { display: none; }
+            .top-actions { max-width: calc(100vw - 115px); gap: 6px; }
+            .top-actions .button { min-height: 36px; padding: 0 9px; font-size: 11px; }
+            #selectedPanel { top: 78px; left: 10px; width: 210px; padding: 11px; }
+            #piecePicker { right: 10px; bottom: 10px; width: min(350px, calc(100vw - 20px)); max-height: 42vh; }
+            .picker-heading { padding: 12px 12px 8px; }
+            #statusMessage { bottom: auto; top: 76px; }
+            .dialog-content { padding: 15px; }
+            .park-entry { align-items: flex-start; flex-direction: column; }
+            .park-entry-actions { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas" aria-label="3D skatepark editor"></canvas>
+
+    <header class="topbar">
+        <div class="brand">
+            <div class="brand-mark" aria-hidden="true">M</div>
+            <div>
+                <h1>MakeAPark</h1>
+                <p>Build your own spot. Skate it your way.</p>
+            </div>
+        </div>
+        <div class="top-actions">
+            <a class="button" href="../index.html" style="display:grid;place-items:center;text-decoration:none">Back to game</a>
+            <button class="button" id="undoButton" type="button" title="Undo (Ctrl+Z)" disabled>Undo</button>
+            <button class="button" id="redoButton" type="button" title="Redo (Ctrl+Y or Ctrl+Shift+Z)" disabled>Redo</button>
+            <button class="button" id="importButton" type="button">Import GLB</button>
+            <button class="button" id="saveButton" type="button">My parks</button>
+            <button class="button primary" id="testParkButton" type="button">Test park</button>
+            <button class="button primary" id="exportButton" type="button">Export GLB</button>
+        </div>
+    </header>
+
+    <dialog id="parksDialog">
+        <div class="dialog-content">
+            <h2>My parks</h2>
+            <p>Save several parks on this device. Each gets a short code. Share makes a link containing the park data; the code by itself is not a public lookup code.</p>
+            <div class="save-row">
+                <input id="parkNameInput" type="text" maxlength="60" placeholder="Park name" aria-label="Park name">
+                <button class="button primary" id="saveParkAsButton" type="button">Save new park</button>
+            </div>
+            <div id="parkManagerMessage" role="status" aria-live="polite"></div>
+            <div id="savedParksList" aria-live="polite"></div>
+            <div class="share-row">
+                <input id="shareLinkInput" type="text" readonly aria-label="Park share link" placeholder="Select Share on a park to create a link">
+                <button class="button" id="copyShareLinkButton" type="button" disabled>Copy link</button>
+            </div>
+            <div class="dialog-footer">
+                <button class="button" id="closeParksDialogButton" type="button">Close</button>
+            </div>
+        </div>
+    </dialog>
+
+    <section id="selectedPanel" aria-label="Selected object">
+        <div class="eyebrow">Selected piece</div>
+        <div id="selectedName">Nothing selected</div>
+        <div class="transform-tools" role="group" aria-label="Transform tool">
+            <button class="tool-button" id="moveToolButton" type="button" aria-pressed="true" title="Move tool (1)">Move</button>
+            <button class="tool-button" id="rotateToolButton" type="button" aria-pressed="false" title="Rotate tool (2)">Rotate</button>
+            <button class="tool-button" id="scaleToolButton" type="button" aria-pressed="false" title="Scale tool (3)">Scale</button>
+        </div>
+        <div class="orientation-tools" role="group" aria-label="Gizmo orientation">
+            <button class="tool-button" id="worldOrientationButton" type="button" aria-pressed="true">World</button>
+            <button class="tool-button" id="localOrientationButton" type="button" aria-pressed="false">Local</button>
+        </div>
+        <div class="selection-actions">
+            <button class="button" id="rotateButton" type="button" title="Rotate 90 degrees (R)">↻ Rotate</button>
+            <button class="button" id="copyButton" type="button" title="Copy selected object (Ctrl+C)">Copy</button>
+            <button class="button" id="pasteButton" type="button" title="Paste at the copied object's exact transform (Ctrl+V)">Paste</button>
+            <button class="button" id="snapButton" type="button" aria-pressed="false" title="Toggle snapping to nearby objects (S)">Object Snap: Off (S)</button>
+            <button class="button" id="deleteButton" type="button" title="Delete selected object (Delete)">Delete piece</button>
+        </div>
+    </section>
+
+    <aside id="piecePicker" aria-label="Skatepark pieces">
+        <div class="picker-heading">
+            <div class="eyebrow">The build menu</div>
+            <h2>Pick a piece</h2>
+            <p>Drag a piece onto the park, or click it to drop it in the middle. Drag the XYZ arrows to move and align objects.</p>
+        </div>
+        <nav class="category-list" id="categoryList" aria-label="Piece categories"></nav>
+        <div id="assetList" aria-live="polite"></div>
+    </aside>
+
+    <div id="statusMessage" role="status" aria-live="polite">Drag the XYZ arrows to move · S object snap on/off · R rotates · Delete removes</div>
+    <div class="drop-hint" id="dropHint">Drop to build</div>
+    <input id="fileInput" type="file" accept=".glb,model/gltf-binary">
+
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+    <script src="https://cdn.babylonjs.com/serializers/babylonjs.serializers.min.js"></script>
+    <script src="map.js"></script>
+</body>
+</html>

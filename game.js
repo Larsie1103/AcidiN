@@ -33,14 +33,6 @@ function writeStoredValue(key, value) {
     }
 }
 
-function removeStoredValue(key) {
-    try {
-        localStorage.removeItem(key);
-    } catch (error) {
-        console.warn(`Lokale instelling "${key}" kon niet worden verwijderd:`, error);
-    }
-}
-
 function hideLoadingScreen() {
     const el = document.getElementById("loadingScreen");
     if (!el) return;
@@ -74,6 +66,7 @@ function showLoadingError(error) {
 
 // --- VERKORTE PHYSICS BOX VOOR RAMPS ---
 let GAME_SETTINGS = null;
+const TEST_PARK_ID = new URLSearchParams(window.location.search).get("testPark");
 let PHYSICS_BOX_WIDTH = 2.5;
 let PHYSICS_BOX_HEIGHT = 0.4;
 let PHYSICS_BOX_DEPTH = 4.5;
@@ -109,18 +102,24 @@ let cameraPitch = 0.85;
 let isFlipping = false;
 let flipDir = 0;
 let flipProgress = 0;
+let currentFlipCount = 1;
 let activeFlipType = "kickflip";
+let isImpossible = false;
+let impossibleProgress = 0;
 
 // Shuvit state (alleen visueel)
 let isShuviting = false;
 let shuvitDir = 0;
 let shuvitProgress = 0;
 let activeShuvitTurns = 1;
+let pendingShuvitWheelDelta = 0;
+let shuvitWheelTimer = null;
+const SHUVIT_WHEEL_GESTURE_MS = 100;
 let SHUVIT_DURATION = 0.32;
 let playerIsGrounded = false;
 let trickInputBuffer = [];
 let pendingScoredTricks = [];
-let pendingBaseTricks = [];
+let pendingLevelEvents = [];
 let bankedScore = 0;
 let comboMultiplier = 1;
 let lastTrickMessage = "";
@@ -130,6 +129,15 @@ let trickComboWindowMs = 350;
 let shuvit360Delta = 180;
 let trickSystemSettings = null;
 let baseTrickPoints = {};
+let currentUsername = readStoredValue("acidin_username", "Skater");
+let USERNAME_HIGHT = 2.8;
+let levelState = {
+    currentLevel: 1,
+    progress: {},
+    completed: [],
+    collectedStars: []
+};
+let usernameLabel = null;
 
 // Manual state
 let isManualing = false;
@@ -142,6 +150,7 @@ let MANUAL_PITCH_SPEED = 3.2;
 // Grind state + cylinder (pas deze 3 waardes aan voor de grootte)
 let isGrinding = false;
 let currentGrindMesh = null;
+let currentGrindType = null;
 let grindAxis = new BABYLON.Vector3(0, 0, 1);
 let grindOrigin = new BABYLON.Vector3();
 let GRIND_HEIGHT_OFFSET = 0.35;
@@ -149,6 +158,14 @@ let GRIND_CYLINDER_DIAMETER = 10.2;
 let GRIND_CYLINDER_HEIGHT = 2.5;
 let BOARD_LINE_LENGTH = 4.2;
 let BOARD_LINE_OFFSET_Y = -0.15;
+let LANDING_ALIGNMENT_DEGREES = 30;
+let characterRootNode = null;
+let characterSkeleton = null;
+let characterRootInitialState = null;
+let characterBoneInitialStates = [];
+let activeCharacterRagdoll = null;
+let isCharacterRagdolled = false;
+let ragdollRecoveryYaw = 0;
 
 // ========== BOARD CUSTOMIZATION ==========
 let AVAILABLE_WHEELS = [];
@@ -205,19 +222,46 @@ async function loadGameSettings() {
     }
 
     const settings = await response.json();
-    if (settings.version !== 1 || !settings.gameplay || !Array.isArray(settings.tasks) ||
+    if (settings.version !== 1 || !settings.gameplay ||
         !Array.isArray(settings.languages) || !settings.translations ||
         !settings.controls?.keyBindings || !settings.assets) {
         throw new Error("settings.json heeft een ongeldig formaat.");
     }
     GAME_SETTINGS = settings;
 
-    const { physics, movement, camera, tricks, rush, tasks, dailyChallenges, board, wheels } = settings.gameplay;
-    if (![physics, movement, camera, tricks, rush, tasks, dailyChallenges, board].every(value =>
+    const { physics, movement, camera, tricks, board, levels, wheels, starPickupRadius } = settings.gameplay;
+    if (![physics, movement, camera, tricks, board].every(value =>
         value && typeof value === "object" && !Array.isArray(value)) ||
-        !Array.isArray(wheels) || wheels.length === 0) {
+        !Array.isArray(wheels) || wheels.length === 0 || !Array.isArray(levels) || levels.length === 0 ||
+        !Number.isFinite(starPickupRadius) || starPickupRadius <= 0 ||
+        !Number.isFinite(tricks.landingAlignmentDegrees) ||
+        tricks.landingAlignmentDegrees <= 0 || tricks.landingAlignmentDegrees >= 90) {
         throw new Error("settings.json mist geldige gameplay-instellingen.");
     }
+    if (!Array.isArray(settings.assets.maps) || settings.assets.maps.length === 0 ||
+        typeof settings.assets.defaultMapId !== "string" ||
+        !settings.assets.maps.some(map => map && map.id === settings.assets.defaultMapId && map.playable)) {
+        throw new Error("settings.json mist een geldige standaardmap.");
+    }
+    const mapIds = new Set(settings.assets.maps
+        .filter(map => map && map.playable)
+        .map(map => map.id));
+    const levelIds = new Set();
+    levels.forEach((level, index) => {
+        if (!level || !Number.isInteger(level.id) || level.id <= 0 ||
+            levelIds.has(level.id) || (index > 0 && level.id <= levels[index - 1].id) ||
+            typeof level.nameKey !== "string" || typeof level.mapId !== "string" ||
+            !mapIds.has(level.mapId) || !Array.isArray(level.goals) || level.goals.length === 0 ||
+            !Number.isFinite(level.reward) || level.reward < 0 ||
+            level.goals.some(goal => !goal ||
+                !["trick", "grind", "star", "push"].includes(goal.event) ||
+                typeof goal.target !== "string" ||
+                !Number.isInteger(goal.required) || goal.required <= 0 ||
+                typeof goal.labelKey !== "string")) {
+            throw new Error("settings.json bevat ongeldige leveldoelen.");
+        }
+        levelIds.add(level.id);
+    });
     trickSystemSettings = settings.gameplay.trickSystem;
     if (!trickSystemSettings || !Number.isInteger(trickSystemSettings.comboWindowMs) ||
         trickSystemSettings.comboWindowMs <= 0 ||
@@ -269,7 +313,8 @@ async function loadGameSettings() {
     GRIND_CYLINDER_HEIGHT = tricks.grindDetectionHeight;
     BOARD_LINE_LENGTH = tricks.boardLineLength;
     BOARD_LINE_OFFSET_Y = tricks.boardLineOffsetY;
-    RUSH_TIME = rush.durationSeconds;
+    LANDING_ALIGNMENT_DEGREES = tricks.landingAlignmentDegrees;
+    USERNAME_HIGHT = board.usernameHight;
     MAP_SCALE = board.mapScale;
     PREVIEW_SCALE = board.previewScale;
     PREVIEW_CAMERA_RADIUS = board.previewCameraRadius;
@@ -284,6 +329,19 @@ async function loadGameSettings() {
         !LANGUAGE_OPTIONS.every(code => LANGUAGE_STRINGS[code])) {
         throw new Error("settings.json bevat ongeldige wiel- of taalinstellingen.");
     }
+    if (!Number.isFinite(USERNAME_HIGHT) || USERNAME_HIGHT <= 0 ||
+        levels.some(level => !LANGUAGE_OPTIONS.every(code =>
+            LANGUAGE_STRINGS[code][level.nameKey] &&
+            level.goals.every(goal => LANGUAGE_STRINGS[code][goal.labelKey]))) ||
+        trickPatterns.some(pattern => !LANGUAGE_OPTIONS.every(code =>
+            LANGUAGE_STRINGS[code][pattern.labelKey])) ||
+        !LANGUAGE_OPTIONS.every(code => LANGUAGE_STRINGS[code].trickImpossible) ||
+        !settings.assets.maps.every(map => map && typeof map.id === "string" &&
+            typeof map.path === "string" && typeof map.playable === "boolean" &&
+            Array.isArray(map.spawnPosition) && map.spawnPosition.length === 3 &&
+            map.spawnPosition.every(Number.isFinite))) {
+        throw new Error("settings.json mist vertalingen, mapgegevens of een geldige usernameHight.");
+    }
     if (new Set(AVAILABLE_WHEELS).size !== AVAILABLE_WHEELS.length ||
         wheels.some(wheel => !wheel || typeof wheel.id !== "string" ||
             !Number.isFinite(wheel.price) || wheel.price < 0)) {
@@ -291,6 +349,10 @@ async function loadGameSettings() {
     }
     if (!Object.values(settings.controls.keyBindings).every(isValidKeyBinding)) {
         throw new Error("settings.json bevat ongeldige toetsenbordinstellingen.");
+    }
+    if (!["menu", "levels", "settings", "grind", "boardslide", "impossible"].every(action =>
+        Object.prototype.hasOwnProperty.call(settings.controls.keyBindings, action))) {
+        throw new Error("settings.json mist toetsen voor een levelmenu of trick.");
     }
     if (!settings.controls.mouse || !["shuvit", "tricks"].every(action =>
         settings.controls.mouse[action] &&
@@ -300,8 +362,13 @@ async function loadGameSettings() {
     if (!AVAILABLE_WHEELS.includes(currentWheel)) currentWheel = AVAILABLE_WHEELS[0];
     ownedWheels = ownedWheels.filter(wheel => AVAILABLE_WHEELS.includes(wheel));
     if (!ownedWheels.includes(AVAILABLE_WHEELS[0])) ownedWheels.unshift(AVAILABLE_WHEELS[0]);
-    if (!LANGUAGE_OPTIONS.includes(currentLanguage)) currentLanguage = settings.defaultLanguage || "en";
+    if (readStoredValue("acidin_onboarding_complete") !== "true") {
+        currentLanguage = settings.defaultLanguage || "en";
+    } else if (!LANGUAGE_OPTIONS.includes(currentLanguage)) {
+        currentLanguage = settings.defaultLanguage || "en";
+    }
     if (!LANGUAGE_OPTIONS.includes(currentLanguage)) currentLanguage = LANGUAGE_OPTIONS[0];
+    levelState = loadLevelState();
 
     const languageSelect = document.getElementById("languageSelect");
     if (languageSelect) {
@@ -312,14 +379,6 @@ async function loadGameSettings() {
             return option;
         }));
     }
-    const rushSlider = document.getElementById("rushSlider");
-    if (rushSlider) {
-        rushSlider.min = String(rush.minTarget);
-        rushSlider.max = String(rush.maxTarget);
-        rushSlider.value = String(rush.defaultTarget);
-    }
-    const rushCountLabel = document.getElementById("rushCountLabel");
-    if (rushCountLabel && rushSlider) rushCountLabel.textContent = rushSlider.value;
 }
 
 function translate(key, values = {}) {
@@ -345,6 +404,19 @@ function getTrickPatterns() {
 function isSequenceMatch(events, sequence) {
     return events.length >= sequence.length &&
         sequence.every((key, index) => events[index].key === key);
+}
+
+function hasUnorderedMatch(events, sequence) {
+    if (events.length < sequence.length) return false;
+    const needed = {};
+    for (const key of sequence) needed[key] = (needed[key] || 0) + 1;
+    const found = {};
+    for (const event of events) {
+        if (needed[event.key]) {
+            found[event.key] = (found[event.key] || 0) + 1;
+        }
+    }
+    return Object.keys(needed).every(key => (found[key] || 0) >= needed[key]);
 }
 
 function setTrickMessage(key) {
@@ -375,6 +447,45 @@ function updateScoreUI() {
     if (pendingEl) pendingEl.textContent = String(getPendingScorePreview());
     if (multiplierEl) multiplierEl.textContent = `x${comboMultiplier}`;
     if (messageEl) messageEl.textContent = lastTrickMessage ? translate(lastTrickMessage) : "";
+
+    const specialFlipsList = document.getElementById("specialFlipsList");
+    if (specialFlipsList && trickSystemSettings) {
+        const trickLabels = {
+            shuvit_bs_360: "shuvitBs360",
+            shuvit_fs_360: "shuvitFs360",
+            kickflip: "trickKickflip",
+            heelflip: "trickHeelflip"
+        };
+        const items = trickSystemSettings.combos
+            .filter(pattern => pattern.displayInScore)
+            .map(pattern => {
+                const item = document.createElement("li");
+                const sequence = pattern.sequence
+                    .map(key => translate(trickLabels[key] || key))
+                    .join(" + ");
+                item.textContent = `${translate(pattern.labelKey)}: ${sequence}`;
+                return item;
+            });
+        specialFlipsList.replaceChildren(...items);
+    }
+}
+
+function flushShuvitWheelInput() {
+    if (shuvitWheelTimer !== null) {
+        clearTimeout(shuvitWheelTimer);
+        shuvitWheelTimer = null;
+    }
+    if (pendingShuvitWheelDelta === 0) return;
+
+    const wheelDelta = pendingShuvitWheelDelta;
+    pendingShuvitWheelDelta = 0;
+    const side = wheelDelta > 0 ? "bs" : "fs";
+    const turns = Math.abs(wheelDelta) >= shuvit360Delta ? 2 : 1;
+    shuvitDir = wheelDelta < 0 ? 1 : -1;
+    activeShuvitTurns = turns;
+    isShuviting = true;
+    shuvitProgress = 0;
+    registerTrickInput(`shuvit_${side}_${turns === 2 ? 360 : 180}`, "trickShuvit");
 }
 
 function queueBaseTrick(event) {
@@ -394,52 +505,66 @@ function triggerSpecialTrick(special) {
 function resolveTrickInputBuffer(now = performance.now(), force = false) {
     const patterns = getTrickPatterns();
     while (trickInputBuffer.length > 0) {
-        const elapsed = now - trickInputBuffer[0].time;
-        const withinWindow = elapsed <= trickComboWindowMs;
-        const candidatePatterns = patterns.filter(pattern =>
-            pattern.sequence[0] === trickInputBuffer[0].key
-        );
-        const matches = candidatePatterns.filter(pattern =>
-            pattern.sequence.length <= trickInputBuffer.length &&
-            isSequenceMatch(trickInputBuffer, pattern.sequence) &&
-            trickInputBuffer[pattern.sequence.length - 1].time -
-                trickInputBuffer[0].time <= trickComboWindowMs
-        );
-        const isPendingPrefix = withinWindow && candidatePatterns.some(pattern =>
-            pattern.sequence.length > trickInputBuffer.length &&
-            trickInputBuffer.every((event, index) => event.key === pattern.sequence[index])
-        );
+        const windowStart = now - trickComboWindowMs;
+        const recent = trickInputBuffer.filter(e => e.time >= windowStart);
 
-        if (isPendingPrefix && !force) {
-            updateScoreUI();
-            return;
+        // Zoek de langste/speciale combo die unordered past binnen het venster
+        let bestMatch = null;
+        let bestScore = -1;
+        for (const pattern of patterns) {
+            if (hasUnorderedMatch(recent, pattern.sequence)) {
+                const score = pattern.sequence.length * 10 + (pattern.special ? 5 : 0);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMatch = pattern;
+                }
+            }
         }
-        if (matches.length > 0) {
-            const pattern = matches.sort((a, b) =>
-                b.sequence.length - a.sequence.length ||
-                Number(Boolean(b.special)) - Number(Boolean(a.special))
-            )[0];
-            trickInputBuffer.splice(0, pattern.sequence.length);
+
+        if (bestMatch) {
+            // Verwijder de gebruikte events (eerste voorkomens van de benodigde keys)
+            const needed = {};
+            for (const key of bestMatch.sequence) needed[key] = (needed[key] || 0) + 1;
+            const toRemove = [];
+            for (let i = 0; i < trickInputBuffer.length && Object.values(needed).some(v => v > 0); i++) {
+                const key = trickInputBuffer[i].key;
+                if (needed[key] > 0) {
+                    needed[key]--;
+                    toRemove.push(i);
+                }
+            }
+            // Verwijder van achter naar voren
+            for (let i = toRemove.length - 1; i >= 0; i--) {
+                trickInputBuffer.splice(toRemove[i], 1);
+            }
+
             pendingScoredTricks.push({
-                key: pattern.name,
-                points: Number(pattern.points),
-                special: Boolean(pattern.special)
+                key: bestMatch.name,
+                points: Number(bestMatch.points),
+                special: Boolean(bestMatch.special)
             });
-            if (pattern.special) triggerSpecialTrick(pattern);
-            else setTrickMessage(pattern.labelKey);
+            if (bestMatch.special) triggerSpecialTrick(bestMatch);
+            else setTrickMessage(bestMatch.labelKey);
             continue;
         }
 
-        queueBaseTrick(trickInputBuffer.shift());
+        // Geen combo: de oudste als losse trick
+        const oldest = trickInputBuffer[0];
+        if (force || (now - oldest.time) > trickComboWindowMs) {
+            queueBaseTrick(trickInputBuffer.shift());
+        } else {
+            // Nog binnen venster, wacht op meer input
+            updateScoreUI();
+            return;
+        }
     }
     updateScoreUI();
 }
 
-function registerTrickInput(key, labelKey = `trick${key[0].toUpperCase()}${key.slice(1)}`, taskType = key) {
+function registerTrickInput(key, labelKey = `trick${key[0].toUpperCase()}${key.slice(1)}`) {
     if (playerIsGrounded || !Number.isFinite(baseTrickPoints[key])) return;
     const time = performance.now();
     trickInputBuffer.push({ key, labelKey, time });
-    pendingBaseTricks.push({ type: taskType });
     resolveTrickInputBuffer(time);
 }
 
@@ -447,15 +572,14 @@ function settleTrickLanding(isBail) {
     resolveTrickInputBuffer(performance.now(), true);
     if (isBail) {
         pendingScoredTricks = [];
-        pendingBaseTricks = [];
+        pendingLevelEvents = [];
         comboMultiplier = 1;
         setTrickMessage("bailMessage");
         return;
     }
 
-    if (pendingScoredTricks.length === 0) {
+    if (pendingScoredTricks.length === 0 && pendingLevelEvents.length === 0) {
         comboMultiplier = 1;
-        pendingBaseTricks = [];
         updateScoreUI();
         return;
     }
@@ -463,16 +587,129 @@ function settleTrickLanding(isBail) {
     for (const trick of pendingScoredTricks) {
         bankedScore += trick.points * comboMultiplier;
         comboMultiplier += 1;
+        addLevelProgress("trick", trick.key);
     }
-    for (const trick of pendingBaseTricks) {
-        addTaskProgress(trick.type);
-        addDailyProgress(trick.type);
-        addTaskProgress("tricks");
-        addDailyProgress("tricks");
+    for (const event of pendingLevelEvents) {
+        addLevelProgress(event.event, event.target);
     }
     pendingScoredTricks = [];
-    pendingBaseTricks = [];
+    pendingLevelEvents = [];
     updateScoreUI();
+}
+
+function isBailLanding(boardUp, velocity, boardRotation) {
+    if (boardUp.y < 0.35) return true;
+
+    const horizontalVelocity = new BABYLON.Vector3(velocity.x, 0, velocity.z);
+    if (horizontalVelocity.lengthSquared() < 1) return false;
+
+    const forward = BABYLON.Vector3.Forward().rotateByQuaternionToRef(
+        boardRotation || BABYLON.Quaternion.Identity(),
+        new BABYLON.Vector3()
+    );
+    forward.y = 0;
+    if (forward.lengthSquared() < 0.0001) return true;
+    forward.normalize();
+    horizontalVelocity.normalize();
+    const minimumAlignment = Math.cos(BABYLON.Tools.ToRadians(LANDING_ALIGNMENT_DEGREES));
+    return BABYLON.Vector3.Dot(forward, horizontalVelocity) < minimumAlignment;
+}
+
+function beginCharacterRagdoll(velocity, boardPhysics) {
+    if (isCharacterRagdolled) return;
+    if (!characterRootNode || !characterSkeleton || typeof BABYLON.Ragdoll !== "function") {
+        console.error("Ragdoll kon niet starten: character-skelet of Babylon Ragdoll API ontbreekt.");
+        return;
+    }
+
+    boardAnimGroups.forEach(animation => animation.stop());
+    currentBoardAnim = null;
+    const worldMatrix = characterRootNode.computeWorldMatrix(true);
+    const worldPosition = new BABYLON.Vector3();
+    const worldRotation = new BABYLON.Quaternion();
+    const worldScaling = new BABYLON.Vector3();
+    worldMatrix.decompose(worldScaling, worldRotation, worldPosition);
+    characterRootNode.parent = null;
+    characterRootNode.position.copyFrom(worldPosition);
+    characterRootNode.rotationQuaternion = worldRotation;
+    characterRootNode.scaling.copyFrom(worldScaling);
+    characterRootNode.computeWorldMatrix(true);
+
+    const horizontalSpeedSquared = velocity.x * velocity.x + velocity.z * velocity.z;
+    ragdollRecoveryYaw = horizontalSpeedSquared >= 1
+        ? Math.atan2(velocity.x, velocity.z)
+        : playerPhysicsMesh.rotationQuaternion?.toEulerAngles().y ?? playerPhysicsMesh.rotation.y;
+    boardPhysics.body.setLinearVelocity(BABYLON.Vector3.Zero());
+    boardPhysics.body.setAngularVelocity(BABYLON.Vector3.Zero());
+    boardPhysics.body.setMotionType(BABYLON.PhysicsMotionType.ANIMATED);
+
+    const characterScale = Math.abs(characterRootNode.scaling.x);
+    const collider = (bone, width, height, depth, mass, joint) => ({
+        bone,
+        width: width * characterScale,
+        height: height * characterScale,
+        depth: depth * characterScale,
+        mass,
+        ...(joint ? { joint } : {})
+    });
+    const ballAndSocket = BABYLON.PhysicsConstraintType.BALL_AND_SOCKET;
+    activeCharacterRagdoll = new BABYLON.Ragdoll(characterSkeleton, characterRootNode, [
+        collider("root", 0.22, 0.14, 0.22, 6),
+        collider("leg-left", 0.1, 0.24, 0.1, 1.5, ballAndSocket),
+        collider("leg-right", 0.1, 0.24, 0.1, 1.5, ballAndSocket),
+        collider("torso", 0.25, 0.32, 0.16, 4, ballAndSocket),
+        collider("arm-left", 0.09, 0.22, 0.09, 1, ballAndSocket),
+        collider("arm-right", 0.09, 0.22, 0.09, 1, ballAndSocket),
+        collider("head", 0.15, 0.15, 0.15, 1, ballAndSocket)
+    ]);
+    activeCharacterRagdoll.ragdoll();
+    isCharacterRagdolled = true;
+    const bailOverlay = document.getElementById("bailOverlay");
+    if (bailOverlay) bailOverlay.hidden = false;
+}
+
+function recoverCharacterFromRagdoll() {
+    if (!isCharacterRagdolled) return false;
+
+    activeCharacterRagdoll?.dispose();
+    activeCharacterRagdoll = null;
+    characterRootNode.parent = characterRootInitialState.parent;
+    characterRootNode.position.copyFrom(characterRootInitialState.position);
+    characterRootNode.rotation.copyFrom(characterRootInitialState.rotation);
+    characterRootNode.rotationQuaternion = characterRootInitialState.rotationQuaternion?.clone() ?? null;
+    characterRootNode.scaling.copyFrom(characterRootInitialState.scaling);
+
+    characterBoneInitialStates.forEach(({ bone, node, position, rotation, rotationQuaternion, scaling }) => {
+        if (!node) return;
+        node.position.copyFrom(position);
+        node.rotation.copyFrom(rotation);
+        node.rotationQuaternion = rotationQuaternion?.clone() ?? null;
+        node.scaling.copyFrom(scaling);
+        bone.linkTransformNode(node);
+    });
+    characterSkeleton.computeAbsoluteMatrices(true);
+
+    playerPhysicsMesh.rotationQuaternion = BABYLON.Quaternion.FromEulerAngles(0, ragdollRecoveryYaw, 0);
+    playerPhysicsBody.setMotionType(BABYLON.PhysicsMotionType.DYNAMIC);
+    playerPhysicsBody.setLinearVelocity(BABYLON.Vector3.Zero());
+    playerPhysicsBody.setAngularVelocity(BABYLON.Vector3.Zero());
+    isFlipping = false;
+    isShuviting = false;
+    isImpossible = false;
+    if (boardParts?.board) boardParts.board.rotation.set(0, 0, 0);
+    if (boardParts?.deck) boardParts.deck.rotation.x = 0;
+    speed = 0;
+    pendingScoredTricks = [];
+    pendingLevelEvents = [];
+    trickInputBuffer = [];
+    comboMultiplier = 1;
+    playerIsGrounded = false;
+    isCharacterRagdolled = false;
+    const bailOverlay = document.getElementById("bailOverlay");
+    if (bailOverlay) bailOverlay.hidden = true;
+    playBoardAnim("idle");
+    updateScoreUI();
+    return true;
 }
 
 function keyMatches(action, key) {
@@ -490,31 +727,6 @@ function getBindingLabel(action) {
         if (key === "arrowright") return "→";
         return key.toUpperCase();
     }).join(" + ")).join(" / ");
-}
-
-function getTaskLabel(task) {
-    if (task.id === "speedrun_grind") return translate("taskSpeedrun", { target: task.target });
-    if (task.id === "air_tricks") return translate("taskAir", { target: task.target });
-    if (task.id === "grind_flip") return translate("taskCombo", { target: task.target });
-    if (task.id && task.id.startsWith("allround")) return translate("taskAllround", { target: task.target });
-
-    const typeKey = `type${task.type.charAt(0).toUpperCase()}${task.type.slice(1)}`;
-    const label = task.label || "";
-    const translatedType = task.type === "tricks" && /\bflips\b/i.test(label)
-        ? translate("typeFlips")
-        : translate(typeKey);
-    const formatKey = task.verb === "start" || label.startsWith("Start ") ? "taskStart"
-        : task.verb === "land" || label.startsWith("Land ") ? "taskLand"
-            : "taskDo";
-    return translate(formatKey, { target: task.target, type: translatedType });
-}
-
-function getDailyChallengeLabel(challenge) {
-    const key = {
-        kickflip: "dailyKickflip", heelflip: "dailyHeelflip", grind: "dailyGrind",
-        shuvit: "dailyShuvit", tricks: "dailyTricks"
-    }[challenge.type];
-    return key ? translate(key, { target: challenge.target }) : challenge.label;
 }
 
 function playBoardAnim(name, loop = true, reverse = false, returnToIdle = true) {
@@ -618,7 +830,7 @@ async function loadWheelSet(name, parentNode, scene) {
         writeStoredValue("acidin_wheel", name);
         currentWheel = name;
         updateWheelUI();
-        updateTaskUI();
+        updateShopUI();
         updateBoardPreviewWheel(name).catch(error => {
             console.error("Previewwielen konden niet worden geladen:", error);
         });
@@ -635,54 +847,13 @@ function cycleWheels(parentNode, scene) {
     loadWheelSet(next, parentNode, scene);
 }
 
-// ========== TASKS + WHEELS CURRENCY ==========
+// ========== LEVEL REWARDS + WHEELS CURRENCY ==========
 let wheelsCurrency = Math.max(0, Number.parseInt(readStoredValue("acidin_wheels_currency", "0"), 10) || 0);
 let ownedWheels = readStoredJSON(
     "acidin_owned_wheels",
     ["white"],
     value => Array.isArray(value) && value.every(wheel => typeof wheel === "string")
 );
-
-let ALL_TASKS = [];
-let activeTasks = []; // de 4 taken die je nu ziet
-let taskProgress = readStoredJSON(
-    "acidin_task_progress",
-    {},
-    value => value !== null && typeof value === "object" && !Array.isArray(value) &&
-        Object.values(value).every(progress => Number.isInteger(progress) && progress >= 0)
-);
-
-function loadTasks() {
-    const validTaskTypes = new Set([
-        "grind", "tricks", "shuvit", "manual", "kickflip", "heelflip", "ollie"
-    ]);
-    ALL_TASKS = GAME_SETTINGS.tasks.filter(task =>
-        task && typeof task.id === "string" &&
-        Number.isInteger(task.target) && task.target > 0 &&
-        Number.isFinite(task.reward) && task.reward >= 0 &&
-        validTaskTypes.has(task.type)
-    );
-    if (ALL_TASKS.length === 0) throw new Error("settings.json bevat geen geldige taken.");
-    const savedTaskIds = readStoredJSON("acidin_active_tasks", [], Array.isArray);
-    const savedTaskIdSet = new Set(savedTaskIds);
-    activeTasks = ALL_TASKS.filter(task => savedTaskIdSet.has(task.id))
-        .slice(0, GAME_SETTINGS.gameplay.tasks.activeCount);
-    refillActiveTasks();
-    saveTasks();
-    updateTaskUI();
-}
-
-function refillActiveTasks() {
-    const used = new Set(activeTasks.map(t => t.id));
-    while (activeTasks.length < GAME_SETTINGS.gameplay.tasks.activeCount && ALL_TASKS.length > 0) {
-        const available = ALL_TASKS.filter(t => !used.has(t.id));
-        if (available.length === 0) break;
-        const pick = available[Math.floor(Math.random() * available.length)];
-        activeTasks.push(pick);
-        used.add(pick.id);
-        taskProgress[pick.id] = 0;
-    }
-}
 
 let audioCtx = null;
 function getAudioCtx() {
@@ -695,7 +866,7 @@ function getAudioCtx() {
     return audioCtx;
 }
 
-function playTaskCompleteSound() {
+function playLevelCompleteSound() {
     try {
         const ctx = getAudioCtx();
         const now = ctx.currentTime;
@@ -718,60 +889,17 @@ function playTaskCompleteSound() {
     }
 }
 
-function saveTasks() {
+function saveWheelProgress() {
     writeStoredValue("acidin_wheels_currency", String(wheelsCurrency));
     writeStoredValue("acidin_owned_wheels", JSON.stringify(ownedWheels));
-    writeStoredValue("acidin_task_progress", JSON.stringify(taskProgress));
-    writeStoredValue("acidin_active_tasks", JSON.stringify(activeTasks.map(task => task.id)));
 }
 
-function addTaskProgress(type, amount = 1) {
-    let changed = false;
-    const completed = [];
-
-    activeTasks.forEach(task => {
-        if (task.type !== type) return;
-        const current = taskProgress[task.id] || 0;
-        if (current >= task.target) return;
-        taskProgress[task.id] = Math.min(task.target, current + amount);
-        if (taskProgress[task.id] >= task.target && current < task.target) {
-            wheelsCurrency += task.reward;
-            completed.push(task.id);
-            playTaskCompleteSound();
-        }
-        changed = true;
-    });
-
-    // Vervang voltooide taken
-    if (completed.length > 0) {
-        activeTasks = activeTasks.filter(t => !completed.includes(t.id));
-        refillActiveTasks();
-    }
-
-    if (changed) {
-        saveTasks();
-        updateTaskUI();
-    }
-}
-
-function updateTaskUI() {
+function updateShopUI() {
     const countEl = document.getElementById("wheelsCount");
     if (countEl) countEl.textContent = wheelsCurrency;
 
     const previewName = document.getElementById("previewWheelName");
     if (previewName) previewName.textContent = currentWheel;
-
-    const taskList = document.getElementById("taskList");
-    if (taskList) {
-        taskList.innerHTML = activeTasks.map(task => {
-            const prog = taskProgress[task.id] || 0;
-            const done = prog >= task.target;
-            return `<div class="task-item">
-                <span>${getTaskLabel(task)}</span>
-                <span class="reward">${done ? "✓" : prog + "/" + task.target} · +${task.reward}</span>
-            </div>`;
-        }).join("") || `<div style="color:#666;padding:10px 0;">${translate("noTasks")}</div>`;
-    }
 
     const shopList = document.getElementById("shopList");
     if (shopList) {
@@ -789,6 +917,263 @@ function updateTaskUI() {
             </div>`;
         }).join("");
     }
+    updateLevelUI();
+}
+
+function loadLevelState() {
+    const levels = GAME_SETTINGS.gameplay.levels;
+    const validIds = new Set(levels.map(level => level.id));
+    const saved = readStoredJSON("acidin_level_state", null, value =>
+        value && typeof value === "object" && !Array.isArray(value) &&
+        Number.isInteger(value.currentLevel) &&
+        value.progress && typeof value.progress === "object" && !Array.isArray(value.progress) &&
+        Array.isArray(value.completed) && Array.isArray(value.collectedStars)
+    );
+    if (!saved) return {
+        currentLevel: levels[0].id,
+        progress: {},
+        completed: [],
+        collectedStars: []
+    };
+
+    return {
+        currentLevel: validIds.has(saved.currentLevel) ? saved.currentLevel : levels[0].id,
+        progress: Object.fromEntries(Object.entries(saved.progress)
+            .filter(([, value]) => Number.isInteger(value) && value >= 0)),
+        completed: [...new Set(saved.completed.filter(id => validIds.has(id)))],
+        collectedStars: [...new Set(saved.collectedStars.filter(name => typeof name === "string"))]
+    };
+}
+
+function saveLevelState() {
+    writeStoredValue("acidin_level_state", JSON.stringify(levelState));
+}
+
+function getCurrentLevel() {
+    return GAME_SETTINGS.gameplay.levels.find(level => level.id === levelState.currentLevel)
+        || GAME_SETTINGS.gameplay.levels[GAME_SETTINGS.gameplay.levels.length - 1];
+}
+
+function getLevelGoalProgressKey(level, index) {
+    return `${level.id}:${index}`;
+}
+
+function updateLevelUI() {
+    if (!GAME_SETTINGS || !levelState) return;
+    const level = getCurrentLevel();
+    const completed = levelState.completed.includes(level.id);
+    const name = `${translate("levels")} ${level.id}: ${translate(level.nameKey)}`;
+    const hudName = document.getElementById("levelHUDName");
+    const hudProgress = document.getElementById("levelHUDProgress");
+    if (hudName) hudName.textContent = name;
+
+    const goalsDone = level.goals.reduce((count, goal, index) =>
+        count + ((levelState.progress[getLevelGoalProgressKey(level, index)] || 0) >= goal.required ? 1 : 0), 0);
+    if (hudProgress) hudProgress.textContent = completed
+        ? translate("levelComplete")
+        : `${goalsDone} / ${level.goals.length}`;
+
+    const list = document.getElementById("levelList");
+    if (!list) return;
+    const allComplete = GAME_SETTINGS.gameplay.levels.every(item => levelState.completed.includes(item.id));
+    if (allComplete) {
+        list.innerHTML = `<p>${translate("allLevelsComplete")}</p>`;
+        return;
+    }
+
+    const goalsHtml = level.goals.map((goal, index) => {
+        const progress = levelState.progress[getLevelGoalProgressKey(level, index)] || 0;
+        const done = progress >= goal.required;
+        return `<div class="task-item"><span>${translate(goal.labelKey, { required: goal.required })}</span>` +
+            `<span class="reward">${done ? "✓" : `${progress} / ${goal.required}`}</span></div>`;
+    }).join("");
+    list.innerHTML = `<div class="section-title">${name}</div>${goalsHtml}` +
+        `<p class="reward">${translate("levelReward", { amount: level.reward })}</p>`;
+}
+
+function addLevelProgress(event, target = "") {
+    const level = getCurrentLevel();
+    if (levelState.completed.includes(level.id)) return;
+    let updated = false;
+    level.goals.forEach((goal, index) => {
+        if (goal.event !== event || goal.target !== target) return;
+        const key = getLevelGoalProgressKey(level, index);
+        const current = levelState.progress[key] || 0;
+        if (current >= goal.required) return;
+        levelState.progress[key] = Math.min(goal.required, current + 1);
+        updated = true;
+    });
+    if (!updated) return;
+
+    const levelComplete = level.goals.every((goal, index) =>
+        (levelState.progress[getLevelGoalProgressKey(level, index)] || 0) >= goal.required);
+    if (levelComplete) {
+        levelState.completed.push(level.id);
+        wheelsCurrency += level.reward;
+        const nextLevel = GAME_SETTINGS.gameplay.levels.find(item => item.id > level.id);
+        if (nextLevel) {
+            levelState.currentLevel = nextLevel.id;
+            const nextMap = GAME_SETTINGS.assets.maps.find(map => map.id === nextLevel.mapId && map.playable);
+            if (nextMap && nextMap.id !== activeMapId && gameScene) {
+                loadLevelMap(gameScene, nextMap, GAME_SETTINGS.gameplay.physics).catch(error => {
+                    console.error(`Map voor level ${nextLevel.id} kon niet worden geladen:`, error);
+                });
+            }
+        }
+        playLevelCompleteSound();
+        saveWheelProgress();
+    }
+    saveLevelState();
+    refreshLevelStars();
+    updateLevelUI();
+    updateShopUI();
+}
+
+function refreshLevelStars() {
+    if (!GAME_SETTINGS || !Array.isArray(collectiveObjects)) return;
+    const level = getCurrentLevel();
+    const starGoal = level.goals.find(goal => goal.event === "star");
+    const starGoalIndex = starGoal ? level.goals.indexOf(starGoal) : -1;
+    const collected = starGoalIndex >= 0 &&
+        (levelState.progress[getLevelGoalProgressKey(level, starGoalIndex)] || 0) >= starGoal.required;
+    collectiveObjects.forEach(mesh => {
+        const starId = mesh.metadata?.levelStarId ?? mesh.name;
+        const visible = Boolean(starGoal && !collected && !levelState.collectedStars.includes(starId));
+        mesh.setEnabled(visible);
+        mesh.isVisible = visible;
+    });
+}
+
+function checkLevelStarPickups(playerPosition) {
+    const level = getCurrentLevel();
+    if (!level.goals.some(goal => goal.event === "star")) return;
+    collectiveObjects.forEach(mesh => {
+        const starId = mesh.metadata?.levelStarId ?? mesh.name;
+        if (!mesh.isVisible || levelState.collectedStars.includes(starId)) return;
+        if (BABYLON.Vector3.Distance(playerPosition, mesh.getAbsolutePosition()) >=
+            GAME_SETTINGS.gameplay.starPickupRadius) return;
+        levelState.collectedStars.push(starId);
+        mesh.isVisible = false;
+        mesh.setEnabled(false);
+        addLevelProgress("star");
+    });
+}
+
+async function loadLevelMap(scene, map, physics) {
+    let result;
+    try {
+        result = await BABYLON.SceneLoader.ImportMeshAsync(
+            "",
+            "",
+            map.path,
+            scene,
+            undefined,
+            map.editorPark ? ".glb" : undefined
+        );
+    } finally {
+        if (map.objectUrl) URL.revokeObjectURL(map.objectUrl);
+    }
+    activeMapAggregates.forEach(aggregate => aggregate.dispose());
+    activeMapColliderMeshes.forEach(mesh => mesh.dispose(false, false));
+    activeMapMeshes.forEach(mesh => mesh.dispose(true, false));
+    activeMapAggregates = [];
+    activeMapColliderMeshes = [];
+    activeMapMeshes = result.meshes;
+    collectiveObjects = [];
+    grindableLines = [];
+
+    result.meshes.forEach(mesh => {
+        if (mesh.name === "__root__") {
+            if (map.editorPark) {
+                mesh.scaling.scaleInPlace(TEST_PARK_SCALE_MULTIPLIER);
+            } else {
+                mesh.scaling.setAll(MAP_SCALE);
+                mesh.position.y -= 100;
+            }
+        }
+    });
+    result.meshes.forEach(mesh => {
+        if (!mesh.geometry || mesh.name === "__root__") return;
+        const name = mesh.name.toLowerCase();
+        if (name.includes("grindable_line")) {
+            grindableLines.push(mesh);
+            mesh.isVisible = false;
+            return;
+        }
+        if (name.includes("objective_collective")) {
+            mesh.setEnabled(false);
+            mesh.isVisible = false;
+            mesh.metadata = { ...mesh.metadata, levelStarId: `${map.id}:${collectiveObjects.length}:${mesh.name}` };
+            collectiveObjects.push(mesh);
+            return;
+        }
+        const collisionMesh = createStaticTriangleCollider(mesh, scene);
+        if (!collisionMesh) return;
+        activeMapColliderMeshes.push(collisionMesh);
+        activeMapAggregates.push(new BABYLON.PhysicsAggregate(
+            collisionMesh,
+            BABYLON.PhysicsShapeType.MESH,
+            { mass: 0, friction: physics.mapFriction, restitution: physics.mapRestitution },
+            scene
+        ));
+    });
+
+    const mapChanged = activeMapId !== null && activeMapId !== map.id;
+    activeMapId = map.id;
+    if (mapChanged && playerPhysicsMesh) {
+        playerPhysicsMesh.position.set(...map.spawnPosition);
+        playerPhysicsMesh.rotationQuaternion = BABYLON.Quaternion.Identity();
+        speed = 0;
+        playerPhysicsBody?.setLinearVelocity(BABYLON.Vector3.Zero());
+        playerPhysicsBody?.setAngularVelocity(BABYLON.Vector3.Zero());
+    }
+    refreshLevelStars();
+    console.info(`Map geladen: ${map.id}; grindlijnen: ${grindableLines.length}; sterren: ${collectiveObjects.length}`);
+}
+
+function createStaticTriangleCollider(sourceMesh, scene) {
+    sourceMesh.computeWorldMatrix(true);
+    const sourcePositions = sourceMesh.getVerticesData(BABYLON.VertexBuffer.PositionKind);
+    if (!sourcePositions || sourcePositions.length < 9) return null;
+
+    const collider = new BABYLON.Mesh(`${sourceMesh.name}_physics`, scene);
+    const positions = new Float32Array(sourcePositions.length);
+    const sourcePoint = new BABYLON.Vector3();
+    const worldPoint = new BABYLON.Vector3();
+    const worldMatrix = sourceMesh.getWorldMatrix();
+    for (let index = 0; index < sourcePositions.length; index += 3) {
+        sourcePoint.set(sourcePositions[index], sourcePositions[index + 1], sourcePositions[index + 2]);
+        BABYLON.Vector3.TransformCoordinatesToRef(sourcePoint, worldMatrix, worldPoint);
+        positions[index] = worldPoint.x;
+        positions[index + 1] = worldPoint.y;
+        positions[index + 2] = worldPoint.z;
+    }
+
+    const indices = sourceMesh.getIndices();
+    collider.setVerticesData(BABYLON.VertexBuffer.PositionKind, positions, false, 3);
+    collider.setIndices(indices ? Array.from(indices) : Array.from(
+        { length: positions.length / 3 },
+        (_, index) => index
+    ));
+    collider.isVisible = false;
+    collider.isPickable = false;
+    collider.metadata = { editorOnly: true, sourceMesh: sourceMesh.name };
+    collider.computeWorldMatrix(true);
+    return collider;
+}
+
+function completeCurrentGrind() {
+    if (currentGrindType) addLevelProgress("grind", currentGrindType);
+    currentGrindType = null;
+    currentGrindMesh = null;
+}
+
+function updateUsernameTag() {
+    if (!usernameLabel) return;
+    const texture = usernameLabel.texture;
+    texture.clear();
+    const fontSize = Math.max(24, Math.min(42, 42 * 18 / currentUsername.length));
+    texture.drawText(currentUsername, null, 86, `bold ${fontSize}px system-ui`, "#ffffff", "transparent", true);
 }
 
 async function updateBoardPreviewWheel(name) {
@@ -886,8 +1271,8 @@ window.buyWheel = function (name) {
     if (!wheel || ownedWheels.includes(name) || wheelsCurrency < wheel.price) return;
     wheelsCurrency -= wheel.price;
     ownedWheels.push(name);
-    saveTasks();
-    updateTaskUI();
+    saveWheelProgress();
+    updateShopUI();
 };
 
 window.equipWheel = function (name) {
@@ -895,13 +1280,13 @@ window.equipWheel = function (name) {
     if (boardParts && boardParts.root && gameScene) {
         loadWheelSet(name, boardParts.root, gameScene);
     }
-    updateTaskUI();
+    updateShopUI();
 };
 
 let taskMenuOpen = false;
-let activeMenuTab = "missions";
+let activeMenuTab = "levels";
 window.showMenuTab = function (tab) {
-    const validTabs = ["missions", "tasks", "shop", "settings"];
+    const validTabs = ["levels", "shop", "settings"];
     if (!validTabs.includes(tab)) return;
     activeMenuTab = tab;
     document.querySelectorAll("[data-menu-tab]").forEach(button => {
@@ -910,7 +1295,18 @@ window.showMenuTab = function (tab) {
     document.querySelectorAll("[data-menu-panel]").forEach(panel => {
         panel.classList.toggle("active", panel.dataset.menuPanel === tab);
     });
+    updateLevelUI();
 };
+
+function toggleMenuSection(tab) {
+    if (taskMenuOpen && activeMenuTab === tab) {
+        toggleTaskMenu();
+        return;
+    }
+    if (document.pointerLockElement) document.exitPointerLock();
+    if (!taskMenuOpen) toggleTaskMenu();
+    window.showMenuTab(tab);
+}
 
 function applyLightMode() {
     const boardSettings = GAME_SETTINGS.gameplay.board;
@@ -951,259 +1347,47 @@ function toggleTaskMenu() {
     if (taskMenuOpen && document.pointerLockElement) {
         document.exitPointerLock();
     }
-    updateTaskUI();
+    updateShopUI();
 }
-window.startRushFromUI = function () {
-    const slider = document.getElementById("rushSlider");
-    const count = slider ? Number.parseInt(slider.value, 10) : 5;
-    if (startRush(count)) toggleTaskMenu();
-};
-
-// ========== RUSHES / COLLECTIBLES ==========
-let rushActive = false;
-let rushObjects = [];
-let rushCollected = 0;
-let rushTarget = 0;
-let rushTimeLeft = 0;
-let RUSH_TIME = 180;
 let MAP_SCALE = 12;
+const TEST_PARK_SCALE_MULTIPLIER = 5;
 let PREVIEW_SCALE = 3.2;
 let PREVIEW_CAMERA_RADIUS = 6;
 let PREVIEW_MIN_RADIUS = 3;
 let PREVIEW_MAX_RADIUS = 12;
 let IDLE_MOTION_SCALE = 3;
 let collectiveObjects = []; // global, wordt gevuld bij map load
+let grindableLines = [];
+let activeMapId = null;
+let activeMapMeshes = [];
+let activeMapAggregates = [];
+let activeMapColliderMeshes = [];
+let playerPhysicsMesh = null;
+let playerPhysicsBody = null;
 
-function startRush(count) {
-    console.log("startRush aangeroepen, collectives:", collectiveObjects.length);
-    if (rushActive) {
-        console.log("Rush is al actief");
-        return false;
-    }
-    if (collectiveObjects.length === 0) {
-        console.warn("Geen objective_collective meshes gevonden in de map!");
-        alert(translate("noStars"));
-        return false;
-    }
-    const available = [...collectiveObjects];
-    // Shuffle
-    for (let i = available.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [available[i], available[j]] = [available[j], available[i]];
-    }
-    const requestedCount = Number.isFinite(count) ? Math.floor(count) : 5;
-    rushTarget = Math.min(
-        Math.max(GAME_SETTINGS.gameplay.rush.minTarget, requestedCount),
-        available.length
-    );
-    rushObjects = available.slice(0, rushTarget);
-    rushCollected = 0;
-    rushTimeLeft = RUSH_TIME;
-    rushActive = true;
-
-    rushObjects.forEach(m => {
-        m.setEnabled(true);
-        m.isVisible = true;
-        console.log("Ster positie:", m.name, m.getAbsolutePosition());
-    });
-    updateRushUI();
-    console.log("Rush gestart:", rushTarget, "objecten");
-    return true;
-}
-
-function endRush(success) {
-    rushActive = false;
-    rushObjects.forEach(m => { m.isVisible = false; });
-    if (success) {
-        wheelsCurrency += rushCollected;
-        saveTasks();
-        playTaskCompleteSound();
-        console.log("Rush geslaagd! +" + rushCollected + " wheels");
-    } else {
-        console.log("Rush mislukt, geen wheels");
-    }
-    rushObjects = [];
-    updateRushUI();
-    updateTaskUI();
-}
-
-function updateRushUI() {
-    const el = document.getElementById("rushStatus");
-    if (!el) return;
-    if (!rushActive) {
-        el.textContent = translate("noActiveRush");
-        el.style.color = "#888";
-        return;
-    }
-    const m = Math.floor(rushTimeLeft / 60);
-    const s = Math.floor(rushTimeLeft % 60).toString().padStart(2, "0");
-    el.textContent = `${rushCollected} / ${rushTarget}  ·  ${m}:${s}`;
-    el.style.color = rushTimeLeft < 30 ? "#f87171" : "#4ade80";
-}
-
-function checkRushPickup(playerPos) {
-    if (!rushActive) return;
-    for (let i = rushObjects.length - 1; i >= 0; i--) {
-        const obj = rushObjects[i];
-        if (!obj.isVisible) continue;
-
-        // Gebruik absolute positie (houdt rekening met parent scaling)
-        const objPos = obj.getAbsolutePosition();
-        const dist = BABYLON.Vector3.Distance(playerPos, objPos);
-
-        // Ruime pickup radius (map is geschaald)
-        if (dist < GAME_SETTINGS.gameplay.rush.pickupRadius) {
-            console.log("Ster opgepakt!", obj.name, "afstand:", dist.toFixed(1));
-            obj.isVisible = false;
-            obj.setEnabled(false);
-            rushCollected++;
-            rushObjects.splice(i, 1);
-            updateRushUI();
-            if (rushCollected >= rushTarget) {
-                endRush(true);
-            }
-        }
-    }
-}
-
-// T opent/sluit het menu altijd (ook bij pointer lock)
+// Keyboard shortcuts open or close their dedicated menu panels.
 document.addEventListener("keydown", (e) => {
     if (e.repeat) return;
+    if (document.getElementById("onboarding")?.classList.contains("open")) return;
     const target = e.target;
     if (target instanceof HTMLElement &&
         (target.isContentEditable || target.matches("input, select, textarea"))) return;
     const key = e.key.toLowerCase();
     if (keyMatches("settings", key)) {
         e.preventDefault();
-        const settingsWereOpen = taskMenuOpen && activeMenuTab === "settings";
-        if (!taskMenuOpen) toggleTaskMenu();
-        if (settingsWereOpen) {
-            toggleTaskMenu();
-        } else {
-            window.showMenuTab("settings");
-        }
+        toggleMenuSection("settings");
+    } else if (keyMatches("levels", key)) {
+        e.preventDefault();
+        toggleMenuSection("levels");
     } else if (keyMatches("menu", key)) {
         e.preventDefault();
-        if (document.pointerLockElement) {
-            document.exitPointerLock();
-        }
-        // kleine delay zodat pointer lock eerst vrij is
-        toggleTaskMenu();
+        toggleMenuSection("shop");
     }
 });
-let dailyChallenge = null;
-let dailyProgress = 0;
-let dailyCompleted = false;
-
-function getDateKey() {
-    const d = new Date();
-    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-}
-
-function seededRandom(seed) {
-    let s = 0;
-    for (let i = 0; i < seed.length; i++) s = (s * 31 + seed.charCodeAt(i)) >>> 0;
-    return function () {
-        s = (s * 1664525 + 1013904223) >>> 0;
-        return (s >>> 0) / 4294967296;
-    };
-}
-
-function generateDailyChallenge() {
-    const dateKey = getDateKey();
-    const rng = seededRandom(dateKey + '-acidin-v2');
-    const challengeTypes = Object.keys(GAME_SETTINGS.gameplay.dailyChallenges);
-    const type = challengeTypes[Math.floor(rng() * challengeTypes.length)];
-    const [minimum, maximum] = GAME_SETTINGS.gameplay.dailyChallenges[type];
-    const target = minimum + Math.floor(rng() * (maximum - minimum + 1));
-    return { type, target, label: `${type} ${target}`, dateKey };
-}
-
-function loadDailyChallenge() {
-    const dateKey = getDateKey();
-    dailyChallenge = generateDailyChallenge();
-    dailyProgress = 0;
-    dailyCompleted = false;
-
-    const saved = readStoredValue('acidin_daily_' + dateKey);
-    if (saved === 'done') {
-        dailyCompleted = true;
-        dailyProgress = dailyChallenge.target;
-    } else {
-        const progress = Number.parseInt(saved, 10);
-        dailyProgress = Number.isFinite(progress)
-            ? BABYLON.Scalar.Clamp(progress, 0, dailyChallenge.target)
-            : 0;
-    }
-
-    updateDailyUI();
-}
-
-function updateDailyUI() {
-    const labelEl = document.getElementById('dailyLabel');
-    const progEl = document.getElementById('dailyProgress');
-    if (!labelEl || !progEl || !dailyChallenge) return;
-
-    const challengeLabel = getDailyChallengeLabel(dailyChallenge);
-    const menuLabelEl = document.getElementById('dailyMenuLabel');
-    const menuProgressEl = document.getElementById('dailyMenuProgress');
-    labelEl.textContent = challengeLabel;
-    if (menuLabelEl) menuLabelEl.textContent = challengeLabel;
-    if (dailyCompleted) {
-        progEl.textContent = translate("dailyDone");
-        progEl.classList.add('done');
-        if (menuProgressEl) menuProgressEl.textContent = translate("dailyDone");
-    } else {
-        progEl.textContent = `${dailyProgress} / ${dailyChallenge.target}`;
-        progEl.classList.remove('done');
-        if (menuProgressEl) menuProgressEl.textContent = `${dailyProgress} / ${dailyChallenge.target}`;
-    }
-}
-
 function updateWheelUI() {
     const el = document.getElementById('currentWheel');
     if (el) el.textContent = currentWheel;
 }
-
-function addDailyProgress(type, amount = 1) {
-    if (!dailyChallenge || dailyCompleted) return;
-    if (dailyChallenge.type !== type) return;
-
-    dailyProgress = Math.min(dailyChallenge.target, dailyProgress + amount);
-    if (dailyProgress >= dailyChallenge.target) {
-        dailyCompleted = true;
-        writeStoredValue('acidin_daily_' + dailyChallenge.dateKey, 'done');
-    } else {
-        writeStoredValue('acidin_daily_' + dailyChallenge.dateKey, String(dailyProgress));
-    }
-    updateDailyUI();
-}
-
-// Debug: nieuwe daily forceren
-// new_daily()           → random
-// new_daily('kickflip') → specifieke
-window.new_daily = function (forceType) {
-    const dateKey = getDateKey();
-    removeStoredValue('acidin_daily_' + dateKey);
-
-    if (forceType) {
-        const range = GAME_SETTINGS.gameplay.dailyChallenges[forceType];
-        if (!range) throw new Error(`Unknown daily challenge type: ${forceType}`);
-        dailyChallenge = {
-            type: forceType,
-            target: Math.floor((range[0] + range[1]) / 2),
-            label: forceType,
-            dateKey
-        };
-        dailyProgress = 0;
-        dailyCompleted = false;
-    } else {
-        loadDailyChallenge();
-        return;
-    }
-    updateDailyUI();
-    console.log('Daily geforceerd:', dailyChallenge);
-};
 
 function applyLanguage() {
     document.documentElement.lang = currentLanguage;
@@ -1212,6 +1396,9 @@ function applyLanguage() {
     });
     document.querySelectorAll("[data-i18n-aria-label]").forEach(element => {
         element.setAttribute("aria-label", translate(element.dataset.i18nAriaLabel));
+    });
+    document.querySelectorAll("[data-i18n-placeholder]").forEach(element => {
+        element.setAttribute("placeholder", translate(element.dataset.i18nPlaceholder));
     });
 
     const languageSelect = document.getElementById("languageSelect");
@@ -1230,31 +1417,132 @@ function applyLanguage() {
         push: getBindingLabel("push"),
         ollie: getBindingLabel("ollie"),
         grind: getBindingLabel("grind"),
+        boardslide: `${getBindingLabel("boardslide")} ${translate("boardslide")}`,
+        impossibleControl: `${getBindingLabel("impossible")} ${translate("trickImpossible")}`,
         switchWheels: getBindingLabel("switchWheels"),
-        menu: getBindingLabel("menu"),
-        settings: getBindingLabel("settings"),
+        menu: `${getBindingLabel("menu")} ${translate("shop")}`,
+        settings: `${getBindingLabel("settings")} ${translate("settings")}`,
+        levels: `${getBindingLabel("levels")} ${translate("levels")}`,
         shuvitControl: GAME_SETTINGS.controls.mouse.shuvit[currentLanguage],
         trickControl: GAME_SETTINGS.controls.mouse.tricks[currentLanguage]
     };
     if (controlsHint) controlsHint.textContent = translate("controlsHint", controlLabels);
     const menuCloseHint = document.querySelector("[data-i18n='menuCloseHint']");
     if (menuCloseHint) menuCloseHint.textContent = translate("menuCloseHint", controlLabels);
+    const onboardingNextButton = document.getElementById("onboardingNextButton");
+    if (onboardingNextButton) {
+        onboardingNextButton.textContent = translate(onboardingStep === 2 ? "finish" : "next");
+    }
+    const tutorialBindings = {
+        forward: getBindingLabel("forward"),
+        backward: getBindingLabel("backward"),
+        left: getBindingLabel("left"),
+        right: getBindingLabel("right"),
+        push: getBindingLabel("push"),
+        ollie: getBindingLabel("ollie"),
+        grind: getBindingLabel("grind"),
+        boardslide: getBindingLabel("boardslide"),
+        impossible: getBindingLabel("impossible"),
+        levels: getBindingLabel("levels"),
+        menu: getBindingLabel("menu"),
+        settings: getBindingLabel("settings")
+    };
+    document.querySelectorAll("#tutorialControls [data-i18n]").forEach(element => {
+        element.textContent = translate(element.dataset.i18n, tutorialBindings);
+    });
     applyLightMode();
-    updateDailyUI();
-    updateRushUI();
-    updateTaskUI();
+    updateShopUI();
+    updateLevelUI();
     updateScoreUI();
+    updateUsernameTag();
+    updateOnboardingLanguageButtons();
+}
+
+function changeLanguage(language) {
+    if (!LANGUAGE_OPTIONS.includes(language)) return;
+    currentLanguage = language;
+    writeStoredValue("acidin_language", currentLanguage);
+    applyLanguage();
 }
 
 const languageSelect = document.getElementById("languageSelect");
 if (languageSelect) {
     languageSelect.addEventListener("change", () => {
-        if (!LANGUAGE_OPTIONS.includes(languageSelect.value)) return;
-        currentLanguage = languageSelect.value;
-        writeStoredValue("acidin_language", currentLanguage);
-        applyLanguage();
+        changeLanguage(languageSelect.value);
     });
 }
+
+let onboardingStep = 0;
+function updateOnboardingLanguageButtons() {
+    const container = document.getElementById("onboardingLanguages");
+    if (!container || !GAME_SETTINGS) return;
+    container.replaceChildren(...GAME_SETTINGS.languages.map(language => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "onboarding-language";
+        button.classList.toggle("active", language.code === currentLanguage);
+        button.textContent = language.name;
+        button.setAttribute("aria-pressed", String(language.code === currentLanguage));
+        button.addEventListener("click", () => changeLanguage(language.code));
+        return button;
+    }));
+}
+
+function showOnboardingStep(step) {
+    onboardingStep = step;
+    document.getElementById("onboardingStepUsername").hidden = step !== 0;
+    document.getElementById("onboardingStepLanguage").hidden = step !== 1;
+    document.getElementById("onboardingStepTutorial").hidden = step !== 2;
+    document.getElementById("onboardingNextButton").textContent =
+        translate(step === 2 ? "finish" : "next");
+    document.getElementById("onboardingError").textContent = "";
+    updateOnboardingLanguageButtons();
+}
+
+function finishOnboarding(skipTutorial = false) {
+    const input = document.getElementById("usernameInput");
+    const name = input ? input.value.trim().slice(0, 24) : "";
+    if (name) currentUsername = name;
+    if (!currentUsername) currentUsername = "Skater";
+    writeStoredValue("acidin_username", currentUsername);
+    writeStoredValue("acidin_onboarding_complete", "true");
+    updateUsernameTag();
+    document.getElementById("onboarding").classList.remove("open");
+    if (!skipTutorial) toggleMenuSection("levels");
+}
+
+function setupFirstRunOnboarding() {
+    const overlay = document.getElementById("onboarding");
+    const input = document.getElementById("usernameInput");
+    if (!overlay || !input || readStoredValue("acidin_onboarding_complete") === "true") return;
+    input.value = currentUsername === "Skater" ? "" : currentUsername;
+    overlay.classList.add("open");
+    showOnboardingStep(0);
+
+    document.getElementById("onboardingNextButton").addEventListener("click", () => {
+        if (onboardingStep === 0) {
+            const name = input.value.trim();
+            if (!name) {
+                document.getElementById("onboardingError").textContent = translate("usernameRequired");
+                input.focus();
+                return;
+            }
+            currentUsername = name.slice(0, 24);
+            writeStoredValue("acidin_username", currentUsername);
+            updateUsernameTag();
+            showOnboardingStep(1);
+        } else if (onboardingStep === 1) {
+            showOnboardingStep(2);
+        } else {
+            finishOnboarding();
+        }
+    });
+    document.getElementById("skipTutorialButton").addEventListener("click", () => finishOnboarding(true));
+    input.addEventListener("keydown", event => {
+        if (event.key === "Enter") document.getElementById("onboardingNextButton").click();
+    });
+}
+
 async function createGame() {
     const scene = new BABYLON.Scene(engine);
     scene.animationsEnabled = true;
@@ -1320,41 +1608,50 @@ async function createGame() {
     gameLight = light;
     applyLightMode();
 
-    let grindableLines = [];
+    let activeMap = GAME_SETTINGS.assets.maps.find(map =>
+        map.id === getCurrentLevel().mapId && map.playable);
+    if (!activeMap) throw new Error(`Geen speelbare map gevonden voor level ${levelState.currentLevel}.`);
+    if (TEST_PARK_ID) {
+        const testPark = await readTestPark(TEST_PARK_ID);
+        const objectUrl = URL.createObjectURL(testPark);
+        activeMap = {
+            id: TEST_PARK_ID,
+            path: objectUrl,
+            objectUrl,
+            editorPark: true,
+            playable: true,
+            spawnPosition: [0, 5, 0]
+        };
+        const backToEditor = document.getElementById("backToParkEditor");
+        backToEditor.hidden = false;
+        backToEditor.href = new URL("MAP/index.html", location.href).href;
+        backToEditor.addEventListener("click", event => {
+            if (!window.opener || window.opener.closed) return;
+            event.preventDefault();
+            window.opener.focus();
+        });
+    }
 
-    // --- MAP.GLB ---
     try {
-        const mapResult = await BABYLON.SceneLoader.ImportMeshAsync("", "", GAME_SETTINGS.assets.map, scene);
-        mapResult.meshes.forEach((mesh) => {
-            if (mesh.name === "__root__") {
-                mesh.scaling.setAll(MAP_SCALE);
-                mesh.position.y -= 100;
-            }
-        });
-        mapResult.meshes.forEach((mesh) => {
-            if (mesh.geometry && mesh.name !== "__root__") {
-                new BABYLON.PhysicsAggregate(
-                    mesh,
-                    BABYLON.PhysicsShapeType.MESH, 
-                    { mass: 0, friction: physics.mapFriction, restitution: physics.mapRestitution },
-                    scene
-                );
-
-                const n = mesh.name.toLowerCase();
-                if (n.includes("grindable_line")) {
-                    grindableLines.push(mesh);
-                    mesh.isVisible = false;
-                }
-                if (n.includes("objective_collective")) {
-                    collectiveObjects.push(mesh);
-                    mesh.isVisible = false;
-                    console.log("Collective gevonden:", mesh.name);
-                }
-            }
-        });
-        console.log("Grindable lines:", grindableLines.length, "| Collectives:", collectiveObjects.length);
+        await loadLevelMap(scene, activeMap, physics);
+        if (activeMap.editorPark) {
+            const testGround = BABYLON.MeshBuilder.CreateGround("test-park-ground", {
+                width: 500,
+                height: 500
+            }, scene);
+            testGround.position.y = -0.25;
+            testGround.isVisible = false;
+            testGround.isPickable = false;
+            activeMapAggregates.push(new BABYLON.PhysicsAggregate(
+                testGround,
+                BABYLON.PhysicsShapeType.BOX,
+                { mass: 0, friction: physics.mapFriction, restitution: physics.mapRestitution },
+                scene
+            ));
+        }
     } catch (err) {
-        console.error("Fout bij het laden van models/map.glb:", err);
+        console.error(`Fout bij het laden van ${activeMap.path}:`, err);
+        if (activeMap.editorPark) throw err;
         const ground = BABYLON.MeshBuilder.CreateGround("ground", { width: 200, height: 200 }, scene);
         const groundMaterial = new BABYLON.StandardMaterial("groundMaterial", scene);
         groundMaterial.diffuseColor = new BABYLON.Color3(0.5, 0.5, 0.5);
@@ -1362,14 +1659,55 @@ async function createGame() {
         new BABYLON.PhysicsAggregate(ground, BABYLON.PhysicsShapeType.BOX, { mass: 0, restitution: 0, friction: 0.5 }, scene);
     }
 
+    async function readTestPark(testParkId) {
+        if (!/^test-[0-9a-f-]{36}$/.test(testParkId)) {
+            throw new Error("This test-park link is invalid. Return to MakeAPark and press Test park again.");
+        }
+        if (!("indexedDB" in window)) throw new Error("This browser cannot load a local test park.");
+        const database = await new Promise((resolve, reject) => {
+            const request = indexedDB.open("acidin-makeapark", 1);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error || new Error("Could not open local park storage."));
+        });
+        return new Promise((resolve, reject) => {
+            const transaction = database.transaction("parks", "readonly");
+            const request = transaction.objectStore("parks").get(testParkId);
+            request.onsuccess = () => {
+                const blob = request.result?.testGlb;
+                if (blob instanceof Blob) resolve(blob);
+                else reject(new Error("This test park is no longer available. Open MakeAPark and test it again."));
+            };
+            request.onerror = () => reject(request.error || new Error("Could not read the test park."));
+            transaction.oncomplete = () => database.close();
+            transaction.onerror = () => database.close();
+        });
+    }
     // 2. PHYSICS MESH
     const physicsMesh = BABYLON.MeshBuilder.CreateBox(
         "physicsMesh", 
         { width: PHYSICS_BOX_WIDTH, height: PHYSICS_BOX_HEIGHT, depth: PHYSICS_BOX_DEPTH }, 
         scene
     );
-    physicsMesh.position.set(0, 15, 0); 
+    playerPhysicsMesh = physicsMesh;
+    physicsMesh.position.set(...activeMap.spawnPosition);
     physicsMesh.isVisible = false; 
+    const usernamePlane = BABYLON.MeshBuilder.CreatePlane("usernameTag", {
+        width: 3.2,
+        height: 0.8
+    }, scene);
+    usernamePlane.position.y = physicsMesh.position.y + USERNAME_HIGHT;
+    usernamePlane.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
+    usernamePlane.isPickable = false;
+    const usernameTexture = new BABYLON.DynamicTexture("usernameTexture", { width: 512, height: 128 }, scene, true);
+    const usernameMaterial = new BABYLON.StandardMaterial("usernameMaterial", scene);
+    usernameMaterial.diffuseTexture = usernameTexture;
+    usernameMaterial.opacityTexture = usernameTexture;
+    usernameMaterial.emissiveColor = BABYLON.Color3.White();
+    usernameMaterial.disableDepthWrite = true;
+    usernameMaterial.backFaceCulling = false;
+    usernamePlane.material = usernameMaterial;
+    usernameLabel = { texture: usernameTexture, mesh: usernamePlane };
+    updateUsernameTag();
 
     // Zichtbare grindCylinder die het board volgt
     const grindCylinder = BABYLON.MeshBuilder.CreateCylinder("grindCylinder", {
@@ -1462,6 +1800,7 @@ async function createGame() {
         { mass: physics.mass, friction: physics.friction, restitution: physics.restitution },
         scene
     );
+    playerPhysicsBody = boardPhysics.body;
     boardPhysics.body.setMotionType(BABYLON.PhysicsMotionType.DYNAMIC);
     boardPhysics.body.setLinearDamping(physics.linearDamping);
     boardPhysics.body.setAngularDamping(physics.angularDamping);
@@ -1479,6 +1818,11 @@ async function createGame() {
         const skateboard = result.meshes[0];
         skateboard.parent = physicsMesh;
         boardParts.root = skateboard;
+        characterRootNode = scene.getNodeByName("character-skate-boy");
+        characterSkeleton = result.skeletons.find(skeleton =>
+            skeleton.bones.some(bone => bone.name === "root") &&
+            skeleton.bones.some(bone => bone.name === "torso")
+        ) || null;
 
         // Animaties ophalen
         boardAnimGroups = result.animationGroups || [];
@@ -1515,6 +1859,28 @@ async function createGame() {
         // Stop alle animaties eerst
         boardAnimGroups.forEach(a => a.stop());
         currentBoardAnim = null;
+        if (characterRootNode && characterSkeleton) {
+            characterRootInitialState = {
+                parent: characterRootNode.parent,
+                position: characterRootNode.position.clone(),
+                rotation: characterRootNode.rotation.clone(),
+                rotationQuaternion: characterRootNode.rotationQuaternion?.clone() ?? null,
+                scaling: characterRootNode.scaling.clone()
+            };
+            characterBoneInitialStates = characterSkeleton.bones.map(bone => {
+                const node = bone.getTransformNode();
+                return {
+                    bone,
+                    node,
+                    position: node?.position.clone(),
+                    rotation: node?.rotation.clone(),
+                    rotationQuaternion: node?.rotationQuaternion?.clone() ?? null,
+                    scaling: node?.scaling.clone()
+                };
+            });
+        } else {
+            console.warn("Character-ragdoll niet beschikbaar: het geladen model mist het skelet of character-root.");
+        }
         function findByName(name) { return scene.getNodeByName(name); }
         boardParts.deck = findByName("Deck") || findByName("Skateboard_1");
         boardParts.frontTruck = findByName("FrontTruck");
@@ -1589,6 +1955,15 @@ async function createGame() {
     const inputMap = {};
     let canOllie = false;
     scene.onKeyboardObservable.add((kbInfo) => {
+        if (isCharacterRagdolled) {
+            if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYDOWN) {
+                recoverCharacterFromRagdoll();
+                canOllie = false;
+                Object.keys(inputMap).forEach(key => { inputMap[key] = false; });
+            }
+            return;
+        }
+        if (document.getElementById("onboarding")?.classList.contains("open")) return;
         const key = kbInfo.event.key.toLowerCase();
         if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYDOWN) {
             const wasAlreadyDown = inputMap[key] === true;
@@ -1612,13 +1987,21 @@ async function createGame() {
                 const oldSpeed = speed;
                 speed = Math.min(speed + pushpower, maxSpeed);
 
-                if (pushAnim && speed > oldSpeed) playBoardAnim("push", false);
+                if (speed > oldSpeed) {
+                    if (pushAnim) playBoardAnim("push", false);
+                    addLevelProgress("push", "push");
+                }
             }
             if (keyMatches("switchWheels", key)) {
                 // Wissel wiel-set
                 if (boardParts.root) {
                     cycleWheels(boardParts.root, scene);
                 }
+            }
+            if (isGrinding && keyMatches("boardslide", key) && controlPressed("boardslide", inputMap)) {
+                currentGrindType = "boardslide";
+                const yaw = Math.atan2(grindAxis.x, grindAxis.z) + Math.PI / 2;
+                physicsMesh.rotationQuaternion = BABYLON.Quaternion.FromEulerAngles(0, yaw, 0);
             }
             if (keyMatches("grind", key) && !isGrinding) {
                 console.log("Q ingedrukt - check grindCylinder vs grindable_line");
@@ -1632,9 +2015,8 @@ async function createGame() {
                 if (hitLine) {
                     isGrinding = true;
                     currentGrindMesh = hitLine;
+                    currentGrindType = controlPressed("boardslide", inputMap) ? "boardslide" : "50-50";
                     console.log("Grind gestart op:", hitLine.name);
-                    addDailyProgress('grind');
-                    addTaskProgress('grind');
 
                     // Richting van de lijn (langste as)
                     const bb = hitLine.getBoundingInfo().boundingBox;
@@ -1660,18 +2042,24 @@ async function createGame() {
                     grindOrigin = physicsMesh.position.clone();
 
                     // Board meteen rechtzetten
-                    const yaw = Math.atan2(grindAxis.x, grindAxis.z);
+                    const yaw = Math.atan2(grindAxis.x, grindAxis.z) +
+                        (currentGrindType === "boardslide" ? Math.PI / 2 : 0);
                     physicsMesh.rotationQuaternion = BABYLON.Quaternion.FromEulerAngles(0, yaw, 0);
                 } else {
                     console.log("Geen grindable_line geraakt door de cylinder.");
                 }
+            }
+            if (keyMatches("impossible", key) && !wasAlreadyDown && !playerIsGrounded && !isImpossible) {
+                isImpossible = true;
+                impossibleProgress = 0;
+                registerTrickInput("impossible");
             }
             if (keyMatches("ollie", key) && controlPressed("ollie", inputMap) &&
                 canOllie && ollieTimer <= 0) {
                 canOllie = false;
                 if (isGrinding) {
                     isGrinding = false;
-                    currentGrindMesh = null;
+                    completeCurrentGrind();
                     boardPhysics.body.disablePreStep = true;
                 }
                 const impulseVector = new BABYLON.Vector3(0, jumpPower, 0);
@@ -1679,9 +2067,7 @@ async function createGame() {
                 if (ollieTimer <= 0) {
                     ollieTimer = OLLIE_DURATION;
                     if (ollieAnim) playBoardAnim("ollie", false);
-                    addTaskProgress("ollie");
-                    addTaskProgress("tricks");
-                    addDailyProgress("tricks");
+                    pendingLevelEvents.push({ event: "trick", target: "ollie" });
                 }
             }
         } else if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYUP) {
@@ -1698,9 +2084,18 @@ async function createGame() {
         mouseDeltaX = 0;
         mouseDeltaY = 0;
     });
+    document.addEventListener("pointerdown", (event) => {
+        if (!isCharacterRagdolled) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        recoverCharacterFromRagdoll();
+        canOllie = false;
+        Object.keys(inputMap).forEach(key => { inputMap[key] = false; });
+    }, true);
 
     // --- MUIS / POINTER LOCK / WHEEL ---
     canvas.addEventListener("click", () => {
+        if (isCharacterRagdolled) return;
         getAudioCtx(); // unlock audio
         if (document.pointerLockElement !== canvas) {
             canvas.requestPointerLock();
@@ -1720,6 +2115,7 @@ async function createGame() {
     }, false);
     document.addEventListener("mousemove", (e) => {
         if (isPointerLocked) {
+            flushShuvitWheelInput();
             mouseDeltaX += e.movementX || 0;
             mouseDeltaY += e.movementY || 0;
         }
@@ -1728,19 +2124,31 @@ async function createGame() {
     canvas.addEventListener("wheel", (e) => {
         e.preventDefault();
         if (!isPointerLocked || e.deltaY === 0) return;
-        const side = e.deltaY > 0 ? "bs" : "fs";
-        const turns = Math.abs(e.deltaY) >= shuvit360Delta ? 2 : 1;
-        shuvitDir = e.deltaY < 0 ? 1 : -1;
-        activeShuvitTurns = turns;
-        isShuviting = true;
-        shuvitProgress = 0;
-        registerTrickInput(`shuvit_${side}_${turns === 2 ? 360 : 180}`, "trickShuvit", "shuvit");
+        const delta = e.deltaY * (e.deltaMode === 1 ? 100 : e.deltaMode === 2 ? window.innerHeight : 1);
+        if (pendingShuvitWheelDelta !== 0 &&
+            Math.sign(pendingShuvitWheelDelta) !== Math.sign(delta)) {
+            flushShuvitWheelInput();
+        }
+        pendingShuvitWheelDelta += delta;
+        if (Math.abs(pendingShuvitWheelDelta) >= shuvit360Delta) {
+            flushShuvitWheelInput();
+            return;
+        }
+        if (shuvitWheelTimer !== null) clearTimeout(shuvitWheelTimer);
+        shuvitWheelTimer = setTimeout(flushShuvitWheelInput, SHUVIT_WHEEL_GESTURE_MS);
     }, { passive: false });
 
     // --- GAME LOOP ---
     scene.onBeforeRenderObservable.add(() => {
         const dt = engine.getDeltaTime() / 1000;
         const currentVelocity = boardPhysics.body.getLinearVelocity();
+        if (usernameLabel) {
+            usernameLabel.mesh.position.copyFrom(isCharacterRagdolled && characterRootNode
+                ? characterRootNode.getAbsolutePosition()
+                : physicsMesh.position);
+            usernameLabel.mesh.position.y += USERNAME_HIGHT;
+        }
+        if (isCharacterRagdolled) return;
 
         // Minimap
         const mm = document.getElementById("minimapCanvas");
@@ -1756,10 +2164,9 @@ async function createGame() {
             const px = physicsMesh.position.x;
             const pz = physicsMesh.position.z;
 
-            // Collectibles
-            if (rushActive) {
+            if (getCurrentLevel().goals.some(goal => goal.event === "star")) {
                 ctx.fillStyle = "#fbbf24";
-                rushObjects.forEach(obj => {
+                collectiveObjects.forEach(obj => {
                     if (!obj.isVisible) return;
                     const pos = obj.getAbsolutePosition();
                     const x = cx + (pos.x - px) * scale;
@@ -1779,17 +2186,7 @@ async function createGame() {
             ctx.fill();
         }
 
-        // Rush timer + pickup
-        if (rushActive) {
-            rushTimeLeft -= dt;
-            checkRushPickup(physicsMesh.position);
-            if (rushTimeLeft <= 0) {
-                endRush(false);
-            }
-            if (Math.floor(rushTimeLeft) !== Math.floor(rushTimeLeft + dt)) {
-                updateRushUI();
-            }
-        }
+        checkLevelStarPickups(physicsMesh.position);
         
         // Grind: volg de lijn (tube)
         if (isGrinding && currentGrindMesh) {
@@ -1803,7 +2200,7 @@ async function createGame() {
             if (!stillOn) {
                 console.log("Grind beëindigd");
                 isGrinding = false;
-                currentGrindMesh = null;
+                completeCurrentGrind();
                 boardPhysics.body.disablePreStep = true;
             } else {
                 // Centreer het board zodat de boardLine exact op de grindable_line ligt
@@ -1834,7 +2231,8 @@ async function createGame() {
                 boardPhysics.body.setLinearVelocity(new BABYLON.Vector3(vel.x, 0, vel.z));
                 boardPhysics.body.setAngularVelocity(BABYLON.Vector3.Zero());
 
-                const yaw = Math.atan2(grindAxis.x, grindAxis.z);
+                const yaw = Math.atan2(grindAxis.x, grindAxis.z) +
+                    (currentGrindType === "boardslide" ? Math.PI / 2 : 0);
                 physicsMesh.rotationQuaternion = BABYLON.Quaternion.FromEulerAngles(0, yaw, 0);
             }
         } else if (boardPhysics.body.disablePreStep === false) {
@@ -1858,7 +2256,9 @@ async function createGame() {
                     new BABYLON.Vector3()
                 )
                 : BABYLON.Vector3.Up();
-            settleTrickLanding(boardUp.y < 0.35);
+            const isBail = isBailLanding(boardUp, currentVelocity, physicsMesh.rotationQuaternion);
+            settleTrickLanding(isBail);
+            if (isBail) beginCharacterRagdoll(currentVelocity, boardPhysics);
         }
         if (isGrounded && Math.abs(currentVelocity.y) < 1 && ollieTimer <= 0) {
             canOllie = true;
@@ -1909,18 +2309,19 @@ async function createGame() {
                         isManualing = true;
                         manualDir = mouseDeltaY < 0 ? 1 : -1;
                         manualProgress = 0;
-                        addTaskProgress('manual');
-                        addTaskProgress('tricks');
-                        addDailyProgress('tricks');
                     }
 
-                    if (!isGrounded &&
+                    if (!isGrounded && !isFlipping &&
                         Math.abs(mouseDeltaX) > FLIP_MOUSE_THRESHOLD) {
+                        const flipCount = Math.max(1, Math.floor(Math.abs(mouseDeltaX) / FLIP_MOUSE_THRESHOLD));
                         isFlipping = true;
                         flipDir = mouseDeltaX > 0 ? 1 : -1;
                         flipProgress = 0;
+                        currentFlipCount = flipCount;
                         activeFlipType = getFlipTrick(mouseDeltaX);
-                        registerTrickInput(activeFlipType);
+                        for (let i = 0; i < flipCount; i++) {
+                            registerTrickInput(activeFlipType);
+                        }
                     }
                 }
                 mouseDeltaX = 0;
@@ -2017,12 +2418,24 @@ async function createGame() {
                 if (flipProgress >= 1) {
                     isFlipping = false;
                     flipProgress = 0;
+                    currentFlipCount = 1;
                     if (boardParts.board) boardParts.board.rotation.set(0, 0, 0);
                 } else if (boardParts.board) {
-                    boardParts.board.rotation.z = flipDir * flipProgress * Math.PI * 2;
+                    boardParts.board.rotation.z = flipDir * flipProgress * Math.PI * 2 * currentFlipCount;
                 }
             } else if (boardParts.board) {
                 boardParts.board.rotation.z = 0;
+            }
+
+            if (isImpossible) {
+                impossibleProgress += dt / FLIP_DURATION;
+                if (impossibleProgress >= 1) {
+                    isImpossible = false;
+                    impossibleProgress = 0;
+                    if (boardParts.board && !isShuviting) boardParts.board.rotation.y = 0;
+                } else if (boardParts.board && !isShuviting) {
+                    boardParts.board.rotation.y = Math.PI * 2 * impossibleProgress;
+                }
             }
         }
 
@@ -2061,10 +2474,10 @@ loadGameSettings().then(() => {
 }).then((scene) => {
     console.log("Game geladen, laadscherm verbergen");
     hideLoadingScreen();
-    loadDailyChallenge();
-    loadTasks();
     updateWheelUI();
-    updateTaskUI();
+    updateShopUI();
+    updateLevelUI();
+    setupFirstRunOnboarding();
     initBoardPreview().catch((error) => {
         console.error("Skateboardpreview kon niet worden geladen:", error);
     });
