@@ -1,8 +1,10 @@
-
+const mass = 15;
 const canvas = document.getElementById("renderCanvas");
 const engine = new BABYLON.Engine(canvas, true);
 let loadingScreenTimeout = null;
 let loadingRemovalTimeout = null;
+let minimapTimer = 0;
+
 
 function readStoredValue(key, fallback = null) {
     try {
@@ -1788,7 +1790,6 @@ async function createGame() {
         boardLine.position.y += BOARD_LINE_OFFSET_Y;
         if (physicsMesh.rotationQuaternion) {
             boardLine.rotationQuaternion = physicsMesh.rotationQuaternion.clone();
-            // Extra rotatie zodat hij langs de lengte ligt
             const extra = BABYLON.Quaternion.FromEulerAngles(Math.PI / 2, 0, 0);
             boardLine.rotationQuaternion = physicsMesh.rotationQuaternion.multiply(extra);
         }
@@ -1804,6 +1805,8 @@ async function createGame() {
     boardPhysics.body.setMotionType(BABYLON.PhysicsMotionType.DYNAMIC);
     boardPhysics.body.setLinearDamping(physics.linearDamping);
     boardPhysics.body.setAngularDamping(physics.angularDamping);
+    // Lagere friction tijdens bewegen, anders blijft hij vastzitten
+    const originalFriction = physics.friction;
 
     if (SHOW_PHYSICS_OUTLINE) {
         const viewer = new BABYLON.PhysicsViewer(scene);
@@ -2150,9 +2153,11 @@ async function createGame() {
         }
         if (isCharacterRagdolled) return;
 
-        // Minimap
+        // Minimap (throttled)
+        minimapTimer += dt;
         const mm = document.getElementById("minimapCanvas");
-        if (mm) {
+        if (mm && minimapTimer > 0.07) {
+            minimapTimer = 0;
             const ctx = mm.getContext("2d");
             const w = mm.width, h = mm.height;
             ctx.clearRect(0, 0, w, h);
@@ -2264,8 +2269,54 @@ async function createGame() {
             canOllie = true;
         }
 
-        let angularVel = new BABYLON.Vector3(0, 0, 0);
+        // Muur-bail via snelheidsval + anti-stuck
+        if (!isCharacterRagdolled && !isGrinding) {
+            const prevSpeed = window.prevHorizontalSpeed || 0;
+            const currSpeed = Math.sqrt(currentVelocity.x * currentVelocity.x + currentVelocity.z * currentVelocity.z);
+            window.prevHorizontalSpeed = currSpeed;
 
+            // Alleen bail bij échte muur-impact (heel plotselinge val + nog steeds snel)
+            if (prevSpeed > 18 && currSpeed < prevSpeed * 0.35 && currSpeed > 4) {
+                speed = 0;
+                boardPhysics.body.setLinearVelocity(BABYLON.Vector3.Zero());
+                beginCharacterRagdoll(currentVelocity, boardPhysics);
+            }
+
+            // Vastzitten fixen door positie hard te zetten (zelfde als grind)
+            if (currSpeed < 1.2 && speed < 2) {
+                const origin = physicsMesh.position.add(new BABYLON.Vector3(0, 0.45, 0));
+                const filter = m => m !== physicsMesh && m !== grindCylinder && m !== boardLine;
+                const dirs = [
+                    new BABYLON.Vector3(1, 0, 0), new BABYLON.Vector3(-1, 0, 0),
+                    new BABYLON.Vector3(0, 0, 1), new BABYLON.Vector3(0, 0, -1),
+                    new BABYLON.Vector3(0.7, 0, 0.7), new BABYLON.Vector3(-0.7, 0, 0.7),
+                    new BABYLON.Vector3(0.7, 0, -0.7), new BABYLON.Vector3(-0.7, 0, -0.7)
+                ];
+
+                for (const dir of dirs) {
+                    const hit = scene.pickWithRay(new BABYLON.Ray(origin, dir, 0.5), filter);
+                    if (hit?.hit) {
+                        const n = hit.getNormal(true);
+                        if (n && n.y < 0.5) {
+                            const push = n.clone();
+                            push.y = 0.15;
+                            push.normalize();
+
+                            // Zelfde methode als grind: physics volgt de positie
+                            boardPhysics.body.disablePreStep = false;
+                            physicsMesh.position.addInPlace(push.scale(0.3));
+                            boardPhysics.body.setLinearVelocity(BABYLON.Vector3.Zero());
+                            boardPhysics.body.setAngularVelocity(BABYLON.Vector3.Zero());
+                            speed = 0;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        let angularVel = new BABYLON.Vector3(0, 0, 0);
+        
         if (!isGrinding) {
             let isVertical = false;
             const rotQuat = physicsMesh.rotationQuaternion;
@@ -2277,14 +2328,14 @@ async function createGame() {
             if (controlPressed("left", inputMap)) {
                 if (isVertical && rotQuat) {
                     const localY = BABYLON.Vector3.Up().rotateByQuaternionToRef(rotQuat, new BABYLON.Vector3());
-                    angularVel = localY.scale(-turnSpeed * 4.5);
+                    angularVel = localY.scale(-turnSpeed * 1);
                 } else {
                     angularVel.y = -turnSpeed;
                 }
             } else if (controlPressed("right", inputMap)) {
                 if (isVertical && rotQuat) {
                     const localY = BABYLON.Vector3.Up().rotateByQuaternionToRef(rotQuat, new BABYLON.Vector3());
-                    angularVel = localY.scale(turnSpeed * 4.5);
+                    angularVel = localY.scale(turnSpeed * 1);
                 } else {
                     angularVel.y = turnSpeed;
                 }
@@ -2359,32 +2410,33 @@ async function createGame() {
             boardPhysics.body.setAngularVelocity(angularVel);
         }
 
-        // Normale lineaire beweging
+        // Beweging via velocity-blend
         if (!isGrinding) {
             const rotationQuat = physicsMesh.rotationQuaternion;
             if (rotationQuat) {
-                const forwardDirection = new BABYLON.Vector3();
-                BABYLON.Vector3.Forward().rotateByQuaternionToRef(rotationQuat, forwardDirection);
-                
+                const forward = BABYLON.Vector3.Forward().rotateByQuaternionToRef(rotationQuat, new BABYLON.Vector3());
+                forward.y = 0;
+                if (forward.lengthSquared() > 0.0001) forward.normalize();
+
+                const currentVel = boardPhysics.body.getLinearVelocity();
+                let targetX = 0;
+                let targetZ = 0;
+
                 if (speed > 0) {
-                    const targetForwardVel = forwardDirection.scale(speed);
-                    currentVelocity.x = targetForwardVel.x;
-                    currentVelocity.z = targetForwardVel.z;
-                    boardPhysics.body.setLinearVelocity(currentVelocity);
+                    const desired = forward.scale(speed);
+                    targetX = desired.x;
+                    targetZ = desired.z;
                     speed = Math.max(0, speed - SlowDownPower * dt * 60);
-                } else {
-                    speed = 0;
-                    boardPhysics.body.setLinearVelocity(new BABYLON.Vector3(
-                        currentVelocity.x * 0.95, 
-                        currentVelocity.y,
-                        currentVelocity.z * 0.95
-                    ));
                 }
-                const extraGravityForce = new BABYLON.Vector3(0, -15.0, 0); 
-                boardPhysics.body.applyForce(extraGravityForce, physicsMesh.absolutePosition);
+
+                const blend = 0.5;
+                boardPhysics.body.setLinearVelocity(new BABYLON.Vector3(
+                    BABYLON.Scalar.Lerp(currentVel.x, targetX, blend),
+                    currentVel.y,
+                    BABYLON.Scalar.Lerp(currentVel.z, targetZ, blend)
+                ));
             }
         }
-
         // Visuele shuvit
         if (boardParts.board && isShuviting) {
             shuvitProgress += dt / SHUVIT_DURATION;

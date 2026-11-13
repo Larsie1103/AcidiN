@@ -126,7 +126,7 @@ const ground = BABYLON.MeshBuilder.CreateGround("editor-ground", {
     subdivisions: 1
 }, scene);
 ground.isPickable = true;
-ground.metadata = { editorOnly: true };
+ground.metadata = { editorOnly: false};
 
 const groundTexture = new BABYLON.DynamicTexture("editor-ground-grid", 512, scene, false);
 const gridContext = groundTexture.getContext();

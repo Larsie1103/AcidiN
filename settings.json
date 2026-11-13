@@ -71,9 +71,9 @@
         "path": "models/maps/map.glb",
         "playable": true,
         "spawnPosition": [
-          0,
-          15,
-          0
+          -50,
+          -75,
+          30
         ]
       }
     ],
@@ -87,11 +87,11 @@
       "boxHeight": 0.4,
       "boxDepth": 4.5,
       "mass": 15,
-      "friction": 0,
+      "friction": 0.5,
       "restitution": 0.05,
-      "linearDamping": 0.1,
+      "linearDamping": 0.25,
       "angularDamping": 0.8,
-      "mapFriction": 0.5,
+      "mapFriction": 0,
       "mapRestitution": 0.1,
       "showOutline": false
     },
@@ -106,8 +106,8 @@
       "ollieDurationSeconds": 0.4
     },
     "camera": {
-      "followDistance": 42,
-      "smoothness": 3,
+      "followDistance": 38,
+      "smoothness": 8,
       "defaultPitch": 0.45,
       "initialYaw": -1.5707963267948966,
       "initialPitch": 0.85,

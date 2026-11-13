@@ -1,6 +1,6 @@
 # Acidin 🧪
 
-Acidin is een browser-skategame gebouwd met Babylon.js. Leer skaten via levels, land tricks en grinds en verdien wheels om nieuwe wielsets vrij te spelen.
+Acidin is een browser-skategame gebouwd met Babylon.js en Havok Physics. Leer skaten via levels, land tricks en grinds op ramps en rails en verdien wheels om nieuwe wielsets vrij te spelen.
 
 ## 🎮 Spelen
 
@@ -25,7 +25,7 @@ Open [MakeAPark](MAP/index.html) (lokaal: [http://localhost:8000/MAP/](http://lo
 - De onderdelen uit de standaardcatalogus worden vier keer groter geplaatst dan de bronmodellen. De startcamera begint dichterbij en draaien, pannen en zoomen reageren rustiger.
 - Selecteer een onderdeel en kies **Move**, **Rotate** of **Scale** (sneltoetsen **1**, **2**, **3**); **World** en **Local** kiezen de gizmo-oriëntatie. Met **Copy** en **Paste** of **Ctrl+C / Ctrl+V** maak je een exacte kopie op dezelfde positie, rotatie en schaal. Gebruik **Undo / Redo**, **Ctrl+Z / Ctrl+Y** of **Ctrl+Shift+Z** om wijzigingen ongedaan te maken of opnieuw toe te passen; een gizmo-drag is één stap. Druk op **S** om object-snap aan of uit te zetten: tijdens het verplaatsen klikken randen en middelpunten van objecten binnen bereik op elkaar vast. **R** draait het object 90°; **Delete** verwijdert het geselecteerde onderdeel.
 - Met **My parks** sla je meerdere parken op dit apparaat op; ieder park krijgt een eigen code. **Share** maakt een link met de parkgegevens erin, zodat daarvoor geen aparte server nodig is. De code is een herkenningscode, geen openbare zoekcode; deel de link om het park te openen. MakeAPark zelf moet wel op een publiek bereikbare website staan. **Test park** opent het huidige park in de game op dit apparaat. **Import GLB** en **Export GLB** laden en bewaren parkbestanden als `.glb`.
-- De officiële texture-atlas staat in `MAP/models/Textures/colormap.png` en wordt ook in GLB-exports meegenomen. De game maakt voor elk parkonderdeel een statische triangle-mesh-collider op basis van de geschaalde geometrie, niet een bounding-box-collider. Pas de testgrootte in `game.js` aan met `TEST_PARK_SCALE_MULTIPLIER` (standaard `10`).
+- De officiële texture-atlas staat in `MAP/models/Textures/colormap.png` en wordt ook in GLB-exports meegenomen. De game maakt voor elk parkonderdeel een statische triangle-mesh-collider op basis van de geschaalde geometrie, niet een bounding-box-collider. Pas de testgrootte in `setup.js` aan met `TEST_PARK_SCALE_MULTIPLIER` (standaard `5`).
 
 ## 🕹️ Besturing
 
@@ -39,6 +39,8 @@ Open [MakeAPark](MAP/index.html) (lokaal: [http://localhost:8000/MAP/](http://lo
 | Q | 50-50-grinden |
 | E + Q | Boardslide |
 | E terwijl je in de lucht bent | Impossible |
+| Muis omhoog/omlaag (op de grond) | Manual |
+| Muis links/rechts (in de lucht) | Kickflip / Heelflip (Multi-flip) |
 | Scrollwiel | Shuvit |
 | V | Wielset wisselen |
 | L | Levelmenu openen/sluiten |
@@ -61,14 +63,23 @@ Bij de eerste start kies je een gebruikersnaam en taal en krijg je een tutorial 
 
 ## 📁 Projectbestanden
 
-- `index.html` — gamepagina en interface.
-- `game.js` — Babylon.js-scene, besturing, tricks, levelvoortgang en shop.
-- `settings.json` — interne gamegegevens, leveldoelen, talen en vertalingen. Mapdefinities zijn uitbreidbaar; `map2.glb` is nog een prototype en is niet speelbaar.
+De gamecode is opgesplitst in vier modulaire JavaScript-bestanden (geladen in vaste volgorde in `index.html`):
+
+- `index.html` — gamepagina, HUD en menu-interface.
+- `setup.js` — globale status, instellingen-lader (`settings.json`), localStorage-helpers, vertalingen, scoresysteem, ragdoll-logica en wereld-/camera-opbouw.
+- `imports.js` — importeren van 3D-modellen (skateboard, character, wielen, maps), animaties, colliders en level-sterren.
+- `menu.js` — interface-updates, shop- en levelmenu's, taalwissel, lichte/donkere modus, eerste-start onboarding en de 3D-boardpreview.
+- `loop.js` — toetsenbord- en muisbesturing, Havok ramp-physics, elke-frame game-loop, minimap, grinds en opstartketen.
+- `settings.json` — interne gamegegevens, physics-parameters, leveldoelen, talen en vertalingen. Mapdefinities zijn uitbreidbaar; `map2.glb` is nog een prototype en is niet speelbaar.
 - `models/` — skateboard-, wiel- en mapmodellen.
 - `MAP/` — zelfstandige MakeAPark-editor (`index.html`, `map.js`) en skateparkonderdelen (`models/`).
 
 ## 📢 Updates
 
+- **v0.7:**
+    - **Modulaire code-architectuur:** de hoofdcode is opgesplitst in `setup.js`, `imports.js`, `menu.js` en `loop.js` voor beter onderhoud en overzicht.
+    - **Havok Ramp Physics:** het skateboard lijnt op hellingen automatisch uit met de ramp-normaal en laat zwaartekracht, snelheidsopbouw en sprongen (air-time) volledig over aan Havok Physics, met verhoogde physics-substeps tegen tunneling.
+    - **Verbeterde nametag:** grotere en beter leesbare 3D-gebruikersnaam boven de skater.
 - **v0.6:**
     - **Multi-flip:** een grote muisbeweging doet nu meerdere flips, zowel in de score/levelvoortgang als in de visual. Hoe verder je flickt, hoe meer rotaties.
     - **Combo’s in elke volgorde:** shuvit + kickflip/heelflip (en langere combo’s) werken ongeacht de volgorde. Je kunt de flip tijdens de shuvit-animatie doen, ervoor of erna, zolang het binnen het combo-venster gebeurt.
